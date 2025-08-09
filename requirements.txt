@@ -8,4 +8,14 @@ transformers==4.47.2
 torch==2.4.1
 sentence-transformers==3.4.2
 datasets==3.2.0
-tiktoken==0.9.0
+tiktoken==0.9.0chromadb==1.0.16
+langchain==0.3.21
+langchain-anthropic==0.3.10
+langchain-chroma==0.2.5
+langchain-community==0.3.20
+langchain-core==0.3.74
+langchain-huggingface==0.3.1
+langchain-ollama==0.3.0
+langchain-openai==0.3.10
+langchain-text-splitters==0.3.7
+ollama==0.4.7
