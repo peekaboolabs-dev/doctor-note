@@ -27,7 +27,10 @@ def load_config(config_path=None):
         "chunk_overlap": 100,
         "collection_name": "korean_medical_qa",
         "batch_size": 500,
-        "log_level": "INFO"
+        "log_level": "INFO",
+        "ollama_model": "solar",
+        "ollama_host": "localhost",
+        "ollama_port": 11434
     }
     
     # 설정 파일이 있으면 로드
@@ -43,7 +46,10 @@ def load_config(config_path=None):
     env_mapping = {
         "EMBEDDING_MODEL": "embedding_model",
         "CHROMA_PERSIST_DIR": "chroma_persist_dir",
-        "LOG_LEVEL": "log_level"
+        "LOG_LEVEL": "log_level",
+        "OLLAMA_MODEL": "ollama_model",
+        "OLLAMA_HOST": "ollama_host",
+        "OLLAMA_PORT": "ollama_port"
     }
     
     for env_var, config_key in env_mapping.items():
