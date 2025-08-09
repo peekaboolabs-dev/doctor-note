@@ -1,0 +1,19 @@
+version: '3.8'
+
+# 개발 환경용 오버라이드 설정
+services:
+  medical-rag:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+    volumes:
+      # 개발 시 전체 코드 마운트
+      - .:/app
+      # node_modules 등 제외
+      - /app/venv
+    command: python -m debugpy --listen 0.0.0.0:5678 --wait-for-client main.py --mode search --query "test"
+    ports:
+      - "5678:5678"  # 디버깅 포트

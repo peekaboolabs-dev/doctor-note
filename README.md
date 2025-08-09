@@ -1,266 +1,372 @@
 # 의료 상담 요약 AI 시스템
 
-## 프로젝트 개요
-의사-환자 간 대화 내용을 분석하여 자동으로 상담 요약을 생성하는 AI 시스템입니다. LangChain과 Ollama를 활용하여 로컬 환경에서 빠르게 프로토타입을 개발하고 검증합니다.
+의사-환자 대화를 자동으로 분석하여 구조화된 상담 요약 노트를 생성하는 AI 시스템입니다.
+한국 의료진 국가시험 데이터셋(KorMedMCQA) 기반 RAG를 활용하여 정확하고 전문적인 의료 요약을 제공합니다.
 
 ## 주요 기능
-- 의사-환자 대화 내용 자동 분석
-- 주요 증상, 진단, 처방 정보 추출
-- 구조화된 상담 요약 생성
-- RAG를 통한 의학 정보 기반 보강
+
+- **의사-환자 대화 분석**: 실시간 대화 내용을 분석하여 핵심 정보 추출
+- **자동 상담 요약**: 증상, 진단, 처방, 주의사항 등을 구조화된 노트로 생성
+- **의학 지식 기반 RAG**: 7,469개 한국 의료진 시험 문제로 정확도 향상
+- **전문 의학 용어 처리**: 한국어 의학 용어 인식 및 표준화
+- **맥락 기반 정보 보강**: RAG를 통한 관련 의학 정보 자동 추가
 
 ## 기술 스택
-- **LLM 프레임워크**: LangChain
-- **모델 실행**: Ollama (로컬 LLM)
-- **벡터 DB**: ChromaDB 또는 FAISS
-- **프로그래밍 언어**: Python 3.10+
-- **웹 프레임워크**: FastAPI (선택사항)
 
-## 시스템 아키텍처
-```
-[의사-환자 대화] → [전처리] → [LLM + RAG] → [상담 요약]
-                                    ↑
-                              [의학 정보 DB]
-```
+- **LLM**: Ollama (로컬 실행)
+- **Vector DB**: ChromaDB
+- **Embedding**: jhgan/ko-sroberta-multitask (한국어 특화)
+- **Framework**: LangChain
+- **Language**: Python 3.10+
+- **Dataset**: KorMedMCQA (한국 의료진 국가시험)
+- **Container**: Docker & Docker Compose
+- **API**: FastAPI (예정)
 
-## 설치 및 환경 설정
+## 빠른 시작 (Docker)
 
-### 1. 필수 도구 설치
+### 1. 저장소 클론
+
 ```bash
-# Ollama 설치 (Mac)
-brew install ollama
+git clone https://github.com/yourusername/doctor-note.git
+cd doctor-note
+```
 
-# Ollama 설치 (Linux)
-curl -fsSL https://ollama.ai/install.sh | sh
+### 2. 환경 설정
 
-# Python 가상환경 생성
+```bash
+# 환경 변수 파일 생성
+cp .env.example .env
+```
+
+### 3. Docker 컨테이너 실행
+
+```bash
+# 이미지 빌드
+make build
+
+# 의학 데이터베이스 초기화 (최초 1회)
+make init-db
+
+# 컨테이너 실행
+make up
+```
+
+### 4. 개발 모드 실행
+
+```bash
+# 개발용 이미지 빌드
+make build-dev
+
+# 개발 모드로 실행 (핫 리로드 지원)
+make up-dev
+```
+
+## 로컬 개발 환경 (Docker 없이)
+
+### 1. 가상환경 설정
+
+```bash
+# 가상환경 생성
 python -m venv venv
+
+# 활성화
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# 필요 패키지 설치
-pip install langchain langchain-community ollama chromadb pandas numpy transformers
+# 의존성 설치
+pip install -r requirements.txt
 ```
 
-### 2. Ollama 모델 다운로드
+### 2. Ollama 설치 및 실행
+
 ```bash
-# 한국어 지원 모델 추천
-ollama pull llama2:13b-chat
-# 또는
-ollama pull mistral:7b
-# 또는 한국어 특화 모델
-ollama pull beomi/llama-2-ko-7b
+# macOS
+brew install ollama
+
+# 모델 다운로드
+ollama pull llama2
+
+# Ollama 서버 실행
+ollama serve
+```
+
+### 3. 초기 데이터 설정
+
+```bash
+python main.py --mode setup
 ```
 
 ## 프로젝트 구조
+
 ```
 doctor-note/
-├── README.md
-├── requirements.txt
+│
 ├── data/
-│   ├── raw/                 # 원본 의학 정보 데이터
-│   ├── processed/           # 전처리된 데이터
-│   └── sample_dialogues/    # 테스트용 대화 샘플
+│   ├── raw/                      # 원본 의료 노트
+│   ├── processed/                # 전처리된 데이터
+│   └── embeddings/               # 벡터 임베딩
+│       └── chroma_medical_db/    # ChromaDB 저장소
+│
 ├── src/
-│   ├── __init__.py
-│   ├── preprocessor.py      # 데이터 전처리
-│   ├── embeddings.py        # 임베딩 생성
-│   ├── rag_engine.py        # RAG 시스템
-│   ├── summarizer.py        # 요약 생성
-│   └── evaluator.py         # 성능 평가
-├── notebooks/
-│   ├── 01_data_exploration.ipynb
-│   ├── 02_rag_setup.ipynb
-│   └── 03_model_evaluation.ipynb
-└── tests/
-    └── test_summarizer.py
+│   ├── api/                      # API 인터페이스
+│   │   ├── __init__.py
+│   │   └── schemas.py           # Pydantic 스키마
+│   ├── data_processing/          # 데이터 전처리
+│   │   └── setup_medical_chromadb.py
+│   ├── models/                   # 모델 및 RAG 시스템
+│   │   └── medical_rag_system.py
+│   └── utils/                    # 유틸리티
+│       ├── config.py            # 설정 관리
+│       └── logger.py            # 로깅
+│
+├── configs/                      # 설정 파일
+├── notebooks/                    # 실험 및 분석  
+├── tests/                        # 테스트 코드
+├── logs/                         # 로그 파일
+│
+├── Dockerfile                    # 프로덕션 컨테이너
+├── Dockerfile.dev               # 개발용 컨테이너
+├── docker-compose.yml           # 기본 구성
+├── docker-compose.dev.yml       # 개발 환경 오버라이드
+├── .dockerignore               # Docker 제외 파일
+├── .env.example                # 환경 변수 예제
+├── Makefile                    # 자동화 명령어
+├── main.py                     # 메인 엔트리포인트
+└── requirements.txt            # Python 의존성
 ```
 
-## 개발 단계
+## 사용 방법
 
-### Phase 1: 데이터 준비 (1-2일)
-1. 의학 정보 5000건 전처리
-   - 형식 통일 (JSON/CSV)
-   - 메타데이터 추가 (카테고리, 질병코드 등)
-   - 품질 검증
+### CLI 사용
 
-2. 샘플 대화 데이터 준비
-   - 실제 상담 대화 형식으로 변환
-   - 정답 요약문 작성 (평가용)
+```bash
+# 의사-환자 대화 요약
+docker-compose run --rm medical-rag python main.py \
+  --mode summarize \
+  --dialogue "의사: 어떤 증상이 있으신가요? 
+환자: 3일 전부터 두통이 심하고 어지러워요." \
+  --patient_id "P12345"
 
-### Phase 2: RAG 시스템 구축 (2-3일)
-1. 벡터 DB 구축
-```python
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import Chroma
-
-# 한국어 임베딩 모델 사용
-embeddings = HuggingFaceEmbeddings(
-    model_name="jhgan/ko-sroberta-multitask"
-)
-
-# 벡터 DB 생성
-vectorstore = Chroma.from_documents(
-    documents=medical_docs,
-    embedding=embeddings,
-    persist_directory="./chroma_db"
-)
+# RAG 성능 테스트
+docker-compose run --rm medical-rag python main.py \
+  --mode benchmark \
+  --test_file "test_dialogues.json"
 ```
 
-2. RAG 파이프라인 구성
+### Python API 사용
+
 ```python
-from langchain.chains import RetrievalQA
-from langchain.llms import Ollama
+from src.models.dialogue_summarizer import DialogueSummarizer
 
-# LLM 설정
-llm = Ollama(model="llama2:13b-chat")
+# 대화 요약 시스템 초기화
+summarizer = DialogueSummarizer()
 
-# RAG 체인 생성
-qa_chain = RetrievalQA.from_chain_type(
-    llm=llm,
-    chain_type="stuff",
-    retriever=vectorstore.as_retriever(k=5)
-)
-```
-
-### Phase 3: 상담 요약 모델 개발 (3-4일)
-1. 프롬프트 엔지니어링
-```python
-summary_prompt = """
-다음은 의사와 환자의 대화 내용입니다:
-{dialogue}
-
-관련 의학 정보:
-{medical_context}
-
-위 대화를 바탕으로 다음 항목을 포함한 상담 요약을 작성하세요:
-1. 주요 증상
-2. 추정 진단
-3. 권고 사항
-4. 추가 검사 필요 여부
-
-요약:
-"""
-```
-
-2. 요약 생성 파이프라인
-```python
-def generate_summary(dialogue):
-    # 대화에서 핵심 키워드 추출
-    keywords = extract_keywords(dialogue)
-    
-    # RAG로 관련 의학 정보 검색
-    medical_context = qa_chain.run(keywords)
-    
-    # 요약 생성
-    summary = llm.generate(
-        summary_prompt.format(
-            dialogue=dialogue,
-            medical_context=medical_context
-        )
-    )
-    return summary
-```
-
-### Phase 4: 평가 및 개선 (2-3일)
-1. 평가 지표 설정
-   - ROUGE 점수
-   - 의학 용어 정확도
-   - 구조 완성도
-   - 인간 평가 (의료진 검토)
-
-2. 모델 튜닝 방법
-   - 프롬프트 최적화
-   - Few-shot 예제 추가
-   - LoRA 파인튜닝 (선택사항)
-
-## 빠른 시작 가이드
-
-### 1. 기본 요약 테스트
-```python
-from src.summarizer import MedicalSummarizer
-
-# 요약기 초기화
-summarizer = MedicalSummarizer()
-
-# 샘플 대화
+# 의사-환자 대화 요약
 dialogue = """
 의사: 어떤 증상으로 오셨나요?
-환자: 3일 전부터 두통이 심하고 열이 나요.
-의사: 열은 몇 도까지 올라가나요?
+환자: 3일 전부터 기침이 심하고 열이 나요.
+의사: 열은 몇 도까지 올라갔나요?
 환자: 38.5도까지 올라갔어요.
-의사: 다른 증상은 없나요?
-환자: 목도 좀 아프고 기침도 나요.
 """
 
-# 요약 생성
-summary = summarizer.summarize(dialogue)
+summary = summarizer.summarize_dialogue(dialogue)
 print(summary)
+# 출력: {"주증상": "기침, 발열", "기간": "3일", "체온": "38.5도", ...}
 ```
 
-### 2. RAG 성능 테스트
+## API 인터페이스 (통합용)
+
+타 개발팀과의 통합을 위한 표준화된 API 스키마가 `src/api/schemas.py`에 정의되어 있습니다.
+
+### 주요 엔드포인트 (백엔드팀 구현 예정)
+
 ```python
-# 의학 정보 검색 테스트
-query = "두통 발열 인후통 증상"
-results = vectorstore.similarity_search(query, k=3)
-for doc in results:
-    print(doc.page_content[:200])
+# 대화 요약 요청
+POST /api/v1/summarize
+{
+    "dialogue": "의사-환자 대화 내용",
+    "patient_id": "P12345",
+    "session_id": "S67890"
+}
+
+# 요약 결과 응답
+{
+    "summary": {
+        "chief_complaint": "기침, 발열",
+        "symptoms": ["3일간 지속된 기침", "38.5도 발열"],
+        "diagnosis": "상기도 감염 의심",
+        "treatment": ["해열제 처방", "충분한 수분 섭취"],
+        "follow_up": "증상 지속시 3일 후 재방문"
+    },
+    "confidence": 0.92,
+    "references": ["관련 의학 문헌 정보"]
+}
 ```
 
-## 성능 최적화 팁
+## 환경 변수 설정
 
-1. **모델 선택**
-   - 빠른 추론: Mistral 7B
-   - 높은 정확도: Llama2 13B
-   - 한국어 특화: beomi/llama-2-ko
+`.env` 파일에서 다음 설정을 관리할 수 있습니다:
 
-2. **RAG 최적화**
-   - Chunk 크기: 200-500 토큰
-   - Overlap: 20-50 토큰
-   - Top-k: 3-5개
+```bash
+# 임베딩 모델
+EMBEDDING_MODEL=jhgan/ko-sroberta-multitask
 
-3. **프롬프트 최적화**
-   - 구조화된 출력 형식 정의
-   - Few-shot 예제 2-3개 포함
-   - 의학 용어 사전 제공
+# ChromaDB
+CHROMA_PERSIST_DIR=/app/data/embeddings/chroma_medical_db
 
-## 예상 결과물
+# Ollama (로컬 또는 컨테이너)
+OLLAMA_HOST=host.docker.internal
+OLLAMA_PORT=11434
+OLLAMA_MODEL=llama2
 
-### 입력 (대화)
-```
-의사: 어떤 증상으로 오셨나요?
-환자: 3일 전부터 두통이 심하고 열이 나요...
+# 로깅
+LOG_LEVEL=INFO
 ```
 
-### 출력 (요약)
+## 개발 가이드
+
+### Makefile 명령어
+
+```bash
+make help        # 도움말 표시
+make build       # Docker 이미지 빌드
+make up          # 컨테이너 시작
+make down        # 컨테이너 중지
+make logs        # 로그 확인
+make shell       # 컨테이너 쉘 접속
+make test        # 테스트 실행
+make clean       # 볼륨 및 캐시 정리
 ```
-[상담 요약]
-- 주요 증상: 두통 (3일), 발열 (38.5°C), 인후통, 기침
-- 추정 진단: 급성 상기도 감염
-- 권고 사항: 충분한 휴식, 수분 섭취, 해열제 복용
-- 추가 검사: 증상 지속 시 인플루엔자 검사 권장
+
+### 디버깅
+
+개발 모드에서는 Python 디버거를 사용할 수 있습니다:
+
+```bash
+# VSCode 디버깅 포트: 5678
+make up-dev
 ```
 
-## 한계점 및 주의사항
-- 의료 진단 목적으로 사용 불가 (보조 도구로만 활용)
-- 개인정보 보호 필요 (로컬 실행 권장)
-- 의학 전문가의 검증 필수
-- 지속적인 데이터 업데이트 필요
+## 최적화 전략
 
-## 향후 개선 방향
-1. 더 많은 의학 데이터 수집 및 학습
-2. 다양한 진료과목별 특화 모델 개발
-3. 실시간 음성 인식 연동
-4. 의료 영상 분석 기능 추가
-5. 클라우드 배포 및 API 서비스화
+### RAG 최적화
+- **임베딩 모델**: jhgan/ko-sroberta-multitask (768차원)
+- **벡터 DB**: ChromaDB (44,814개 의학 문서)
+- **청크 전략**: 1000자 단위, 100자 오버랩
+- **최적화 목표**:
+  - 검색 정확도: 의학 용어 매칭률 90% 이상
+  - 응답 시간: 2초 이내
+  - 컨텍스트 관련성: 상위 5개 중 3개 이상 관련
 
-## 참고 자료
-- [LangChain 문서](https://python.langchain.com/)
-- [Ollama 공식 사이트](https://ollama.ai/)
-- [한국어 임베딩 모델](https://huggingface.co/jhgan/ko-sroberta-multitask)
-- [의료 NLP 가이드라인](https://github.com/medical-nlp-kr)
+### 모델 최적화
+- **LLM 경량화**:
+  - Ollama 지원 양자화 포맷 (GGUF)
+  - 4-bit/8-bit 양자화로 메모리 사용량 감소
+  - 의학 도메인 LoRA 어댑터 적용
+- **임베딩 최적화**:
+  - 의학 코퍼스로 도메인 적응
+  - PCA/UMAP으로 차원 축소 실험
+  - HNSW 인덱스로 검색 속도 개선
+- **서빙 최적화**:
+  - vLLM/TGI 통합 검토
+  - 동적 배치 처리
+  - KV 캐시 최적화
+
+## 문제 해결
+
+### Apple Silicon (M1/M4) 호환성
+- FAISS 대신 ChromaDB 사용으로 segmentation fault 해결
+- ARM64 네이티브 이미지 빌드
+
+### Docker 관련 이슈
+```bash
+# 권한 문제
+sudo usermod -aG docker $USER
+
+# 포트 충돌
+docker ps  # 기존 컨테이너 확인
+make down  # 정리
+```
+
+### Ollama 연결 실패
+```bash
+# 로컬 Ollama 사용 시
+OLLAMA_HOST=host.docker.internal
+
+# Docker Ollama 사용 시  
+OLLAMA_HOST=ollama
+```
+
+## 개발 로드맵
+
+### RAG & 모델 최적화 (담당: 현재 개발자)
+
+#### 대화 분석 시스템
+- [ ] 의사-환자 대화 분석 모듈 개발
+- [ ] 상담 요약 노트 생성 파이프라인
+- [ ] 의학 용어 인식 및 표준화
+- [ ] 대화 컨텍스트 추적 시스템
+
+#### RAG 최적화
+- [ ] 청크 크기 및 오버랩 최적화
+- [ ] 의학 도메인 특화 검색 전략
+- [ ] 동적 컨텍스트 검색 알고리즘
+- [ ] 하이브리드 검색 (키워드 + 시맨틱)
+
+#### 모델 최적화
+- [ ] **LLM 최적화**
+  - [ ] 양자화 (GGUF, GPTQ, AWQ)
+  - [ ] 한국어 의학 데이터 파인튜닝
+  - [ ] LoRA/QLoRA 어댑터 훈련
+  - [ ] 프롬프트 최적화 및 Few-shot 학습
+- [ ] **임베딩 모델 최적화**
+  - [ ] 의학 도메인 특화 임베딩 훈련
+  - [ ] 차원 축소 및 인덱싱 최적화
+  - [ ] 다국어 의학 용어 지원
+- [ ] **서빙 최적화**
+  - [ ] 배치 처리 및 스트리밍
+  - [ ] 모델 캐싱 전략
+  - [ ] GPU 메모리 최적화
+  - [ ] 추론 속도 개선
+
+#### 성능 측정
+- [ ] 벤치마크 시스템 구축
+- [ ] 정확도/속도 트레이드오프 분석
+- [ ] A/B 테스트 프레임워크
+- [ ] 실시간 모니터링 대시보드
+
+### 백엔드 (담당: 타 개발팀)
+- [ ] FastAPI 서버 구현
+- [ ] 인증/인가 시스템
+- [ ] 데이터베이스 설계
+- [ ] API 엔드포인트 구현
+
+### 프론트엔드 (담당: 타 개발팀)
+- [ ] 의사용 대시보드
+- [ ] 실시간 대화 기록 UI
+- [ ] 요약 노트 편집기
+- [ ] 환자 정보 관리
+
+## 기여 방법
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## 라이선스
-MIT License (연구 및 교육 목적)
 
----
-**주의**: 이 시스템은 연구 및 교육 목적으로만 사용해야 하며, 실제 의료 진단이나 처방에 사용해서는 안 됩니다.
+MIT License
+
+## 데이터셋 출처
+
+- [KorMedMCQA](https://huggingface.co/datasets/sean0042/KorMedMCQA): 한국 의료진 국가시험 데이터셋
+
+## 참고자료
+
+- [LangChain Documentation](https://python.langchain.com/)
+- [ChromaDB Documentation](https://docs.trychroma.com/)
+- [Ollama Documentation](https://ollama.ai/)
+- [Korean Sentence-BERT](https://huggingface.co/jhgan/ko-sroberta-multitask)
+- [Docker Documentation](https://docs.docker.com/)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)

@@ -1,0 +1,45 @@
+version: '3.8'
+
+# AWS 프로덕션 환경용 설정
+services:
+  medical-rag:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/medical-rag:latest
+    environment:
+      - ENVIRONMENT=production
+      - OLLAMA_HOST=ollama  # AWS에서는 Ollama 컨테이너 사용
+      - OLLAMA_PORT=11434
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    depends_on:
+      - ollama
+
+  # AWS에서만 Ollama 컨테이너 실행
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-server
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - medical-network
+    deploy:
+      resources:
+        limits:
+          memory: 8G  # LLM은 메모리 많이 필요
+        reservations:
+          memory: 4G
+    command: serve
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  ollama_data:
+    driver: local
