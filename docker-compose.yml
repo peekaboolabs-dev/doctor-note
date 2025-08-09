@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  medical-rag:
+    build: .
+    container_name: medical-rag-system
+    environment:
+      - EMBEDDING_MODEL=jhgan/ko-sroberta-multitask
+      - CHROMA_PERSIST_DIR=/app/data/embeddings/chroma_medical_db
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # ChromaDB 데이터 영구 저장
+      - ./data/embeddings/chroma_medical_db:/app/data/embeddings/chroma_medical_db
+      # 로그 파일
+      - ./logs:/app/logs
+      # 개발 시 코드 실시간 반영 (개발 환경에서만)
+      - ./src:/app/src
+      - ./main.py:/app/main.py
+    ports:
+      - "8000:8000"  # API 서버용 (향후)
+    networks:
+      - medical-network
+    command: python main.py --mode search --query "test"
+    
+  # Ollama 서비스 (선택사항 - 로컬에서 실행 중이면 불필요)
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: ollama-server
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   ports:
+  #     - "11434:11434"
+  #   networks:
+  #     - medical-network
+
+networks:
+  medical-network:
+    driver: bridge
+
+volumes:
+  # ollama_data:  # Ollama 모델 저장용
+  chroma_data:  # ChromaDB 데이터 저장용
