@@ -13,7 +13,7 @@
 
 ## 기술 스택
 
-- **LLM**: Solar (Upstage, Ollama 로컬 실행)
+- **LLM**: GPT-OSS 20B (Ollama 로컬 실행)
 - **Vector DB**: ChromaDB
 - **Embedding**: jhgan/ko-sroberta-multitask (한국어 특화)
 - **Framework**: LangChain
@@ -83,7 +83,7 @@ pip install -r requirements.txt
 brew install ollama
 
 # 모델 다운로드
-ollama pull solar  # 6GB, 한국어 최적화
+ollama pull gpt-oss:20b  # 12GB, 고성능 한국어 의료 상담
 
 # Ollama 서버 실행
 ollama serve
@@ -216,7 +216,7 @@ CHROMA_PERSIST_DIR=/app/data/embeddings/chroma_medical_db
 # Ollama (로컬 또는 컨테이너)
 OLLAMA_HOST=host.docker.internal
 OLLAMA_PORT=11434
-OLLAMA_MODEL=solar
+OLLAMA_MODEL=gpt-oss:20b
 
 # 로깅
 LOG_LEVEL=INFO
@@ -301,23 +301,27 @@ OLLAMA_HOST=ollama
 ### 진행 상황 (2025-08-09 기준)
 
 #### ✅ 완료된 작업
-- [✓] 의사-환자 대휤 분석 모듈 개발
+- [✓] 의사-환자 대화 분석 모듈 개발
 - [✓] 상담 요약 노트 생성 파이프라인
 - [✓] KorMedMCQA 데이터셋 통합 (44,814개 의학 문서)
 - [✓] Docker 컨테이너화
 - [✓] JSON 파일에서 대화 추출 기능
-- [✓] Solar 모델로 전환 (Mac M4 호환)
+- [✓] GPT-OSS 20B 모델로 전환 (우수한 한국어 의료 상담 성능)
+- [✓] 스트리밍 출력 기능 추가
+- [✓] 모델별 벤치마크 시스템 구축
+- [✓] JSON 파싱 오류 해결 (코드블록 처리)
 
 #### 🚧 진행 중
-- [ ] Solar 모델 테스트 및 최적화
-- [ ] 프롬프트 엔지니어링
+- [ ] RAG 성능 최적화 (청크 크기, 검색 전략)
+- [ ] 프롬프트 엔지니어링 및 테스트
+- [ ] 임베딩 모델 의학 도메인 특화
 
 #### 📅 예정 작업
 
-**Phase 1: 로컬 최적화 (1주)**
+**Phase 1: RAG & 프롬프트 최적화 (진행 중)**
 - [ ] RAG 성능 최적화 (청크 크기, 검색 전략)
-- [ ] 벤치마크 및 성능 측정 도구
-- [ ] 의학 용어 인식 및 표준화
+- [ ] 프롬프트 엔지니어링 및 최적화
+- [ ] 임베딩 모델 의학 도메인 특화
 
 **Phase 2: 모델 추상화 (3-4일)**
 - [ ] LLM Provider 추상화 계층 구현
@@ -337,9 +341,9 @@ OLLAMA_HOST=ollama
 ### 기술 의사결정 사항
 
 1. **LLM 모델**
-   - 현재: Solar (로컬 테스트)
-   - AWS: EXAONE/Solar with Transformers
-   - 대안: Qwen2.5, Llama3.2
+   - 현재: GPT-OSS 20B (로컬 테스트, 우수한 성능)
+   - AWS: GPT-OSS/EXAONE with Transformers
+   - 대안: Qwen2.5, Llama3.2, Solar
 
 2. **배포 전략**
    - MVP: EC2 t3.large (CPU)

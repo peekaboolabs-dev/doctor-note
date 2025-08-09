@@ -181,12 +181,27 @@ def main():
             
         elif args.mode == "benchmark":
             # 벤치마크 모드
-            if not args.test_file:
-                parser.error("--test_file 옵션이 필요합니다")
+            from src.models.benchmark_runner import BenchmarkRunner
             
-            logger.info(f"벤치마크 실행: {args.test_file}")
-            # TODO: 벤치마크 구현
-            print("벤치마크 기능은 개발 중입니다.")
+            test_file = args.test_file or "data/sample_dialogues.json"
+            
+            logger.info(f"벤치마크 실행: {test_file}")
+            
+            # 테스트 데이터 로드
+            with open(test_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                test_dialogues = data.get("dialogues", [])
+            
+            # 벤치마크 실행
+            runner = BenchmarkRunner()
+            
+            # 현재 설정된 모델로 벤치마크 실행
+            model_name = config.get("ollama_model", "solar")
+            results = runner.run_model_benchmark(model_name, test_dialogues)
+            
+            # 결과 저장
+            saved_file = runner.save_results(results)
+            print(f"\n벤치마크 결과가 저장되었습니다: {saved_file}")
             
     except Exception as e:
         logger.error(f"오류 발생: {e}")

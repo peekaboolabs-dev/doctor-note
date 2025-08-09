@@ -4,6 +4,10 @@
 import os
 import json
 from pathlib import Path
+from dotenv import load_dotenv
+
+# .env 파일 로드
+load_dotenv()
 
 
 def load_config(config_path=None):

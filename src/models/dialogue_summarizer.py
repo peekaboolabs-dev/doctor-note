@@ -187,8 +187,15 @@ JSON:"""
             chain = self.entity_extraction_prompt | self.llm
             result = chain.invoke({"dialogue": dialogue})
             
-            # JSON 파싱
-            entities_dict = json.loads(result)
+            # JSON 파싱 (코드블록 제거)
+            if result.strip().startswith("```"):
+                # 코드블록 제거
+                lines = result.strip().split('\n')
+                json_content = '\n'.join(lines[1:-1])  # 첫줄과 마지막줄 제거
+            else:
+                json_content = result
+                
+            entities_dict = json.loads(json_content)
             
             # MedicalEntity 객체로 변환
             entities = MedicalEntity(
