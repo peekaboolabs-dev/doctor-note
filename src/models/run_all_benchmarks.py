@@ -63,16 +63,31 @@ def create_comparison_report():
         "models": {}
     }
     
+    # 각 모델의 최신 결과만 사용
+    model_latest = {}
+    
     for file_path in benchmark_files:
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
             
         model_name = data['model']
+        timestamp = data['timestamp']
         
-        # 주요 지표 추출
+        # 해당 모델의 최신 결과인지 확인
+        if model_name not in model_latest or timestamp > model_latest[model_name]['timestamp']:
+            model_latest[model_name] = {
+                'file_path': file_path,
+                'timestamp': timestamp,
+                'data': data
+            }
+    
+    # 최신 결과로 비교 데이터 생성
+    for model_name, info in model_latest.items():
+        data = info['data']
         stats = data.get('statistics', {})
+        
         comparison['models'][model_name] = {
-            "file": os.path.basename(file_path),
+            "file": os.path.basename(info['file_path']),
             "timestamp": data['timestamp'],
             "success_rate": stats.get('success_rate', 0),
             "latency": stats.get('latency', {}),
