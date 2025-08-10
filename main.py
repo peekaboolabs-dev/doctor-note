@@ -9,8 +9,8 @@ from pathlib import Path
 # 프로젝트 루트를 Python 경로에 추가
 sys.path.append(str(Path(__file__).parent))
 
-from src.models.medical_rag_system import MedicalRAGSystem, setup_medical_knowledge_base
-from src.models.dialogue_summarizer import DialogueSummarizer
+from src.models.rag.medical_rag_system import MedicalRAGSystem, setup_medical_knowledge_base
+from src.models.summarizer.dialogue_summarizer import MedicalDialogueSummarizer
 from src.utils.config import load_config
 from src.utils.logger import setup_logger
 import json
@@ -161,7 +161,7 @@ def main():
             ollama_host = config.get("ollama_host", "localhost")
             ollama_model = config.get("ollama_model", "llama2")
             
-            summarizer = DialogueSummarizer(
+            summarizer = MedicalDialogueSummarizer(
                 rag_system=rag_system,
                 ollama_model=ollama_model,
                 ollama_host=ollama_host
@@ -181,7 +181,7 @@ def main():
             
         elif args.mode == "benchmark":
             # 벤치마크 모드
-            from src.models.benchmark_runner import BenchmarkRunner
+            from src.models.benchmark.benchmark_runner import BenchmarkRunner
             
             test_file = args.test_file or "data/sample_dialogues.json"
             
