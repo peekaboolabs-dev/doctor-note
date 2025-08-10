@@ -148,8 +148,8 @@ cython_debug/
 chroma_db/
 *.db
 
-# Model files
-models/
+# Model files (루트 디렉토리의 models만 제외)
+/models/
 *.bin
 *.pth
 *.pkl

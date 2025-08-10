@@ -13,7 +13,7 @@
 
 ## 기술 스택
 
-- **LLM**: Ollama (로컬 실행)
+- **LLM**: GPT-OSS 20B (Ollama 로컬 실행)
 - **Vector DB**: ChromaDB
 - **Embedding**: jhgan/ko-sroberta-multitask (한국어 특화)
 - **Framework**: LangChain
@@ -83,7 +83,7 @@ pip install -r requirements.txt
 brew install ollama
 
 # 모델 다운로드
-ollama pull llama2
+ollama pull gpt-oss:20b  # 12GB, 고성능 한국어 의료 상담
 
 # Ollama 서버 실행
 ollama serve
@@ -216,7 +216,7 @@ CHROMA_PERSIST_DIR=/app/data/embeddings/chroma_medical_db
 # Ollama (로컬 또는 컨테이너)
 OLLAMA_HOST=host.docker.internal
 OLLAMA_PORT=11434
-OLLAMA_MODEL=llama2
+OLLAMA_MODEL=gpt-oss:20b
 
 # 로깅
 LOG_LEVEL=INFO
@@ -271,6 +271,38 @@ make up-dev
   - 동적 배치 처리
   - KV 캐시 최적화
 
+### 벤치마크 시스템
+
+여러 LLM 모델의 성능을 비교하는 통합 벤치마크 시스템을 제공합니다:
+
+```bash
+# 단일 모델 벤치마크
+python main.py --mode benchmark --test_file data/sample_dialogues.json
+
+# 모든 설치된 모델 벤치마크
+python src/models/run_all_benchmarks.py
+```
+
+#### 측정 지표
+- **성능 메트릭**:
+  - 응답 시간 (평균, 중간값, p95, p99)
+  - 토큰 처리 속도 (TPS)
+  - 첫 토큰까지의 시간 (TTFT)
+- **리소스 사용량**:
+  - CPU 사용률 (Python/Ollama 프로세스별)
+  - 메모리 사용량 (MB 단위)
+  - 총 시스템 리소스 사용량
+- **정확도 메트릭**:
+  - 성공률
+  - 토큰 통계 (입력/출력 토큰 수)
+
+#### 지원 모델
+- Solar (10.7B)
+- GPT-OSS (20B) - 권장
+- Gemma3 (12B, 27B)
+- Qwen3 (8B, 30B)
+- 추가 모델 확장 가능
+
 ## 문제 해결
 
 ### Apple Silicon (M1/M4) 호환성
@@ -296,15 +328,71 @@ OLLAMA_HOST=host.docker.internal
 OLLAMA_HOST=ollama
 ```
 
-## 개발 로드맵
+## 개발 현황 및 로드맵
 
-### RAG & 모델 최적화 (담당: 현재 개발자)
+### 진행 상황 (2025-08-10 기준)
 
-#### 대화 분석 시스템
-- [ ] 의사-환자 대화 분석 모듈 개발
-- [ ] 상담 요약 노트 생성 파이프라인
-- [ ] 의학 용어 인식 및 표준화
-- [ ] 대화 컨텍스트 추적 시스템
+#### ✅ 완료된 작업
+- [✓] 의사-환자 대화 분석 모듈 개발
+- [✓] 상담 요약 노트 생성 파이프라인
+- [✓] KorMedMCQA 데이터셋 통합 (44,814개 의학 문서)
+- [✓] Docker 컨테이너화
+- [✓] JSON 파일에서 대화 추출 기능
+- [✓] GPT-OSS 20B 모델로 전환 (우수한 한국어 의료 상담 성능)
+- [✓] 스트리밍 출력 기능 추가
+- [✓] 모델별 벤치마크 시스템 구축
+- [✓] JSON 파싱 오류 해결 (코드블록 처리)
+- [✓] 벤치마크 시스템 고도화
+  - 리소스 모니터링 (CPU, 메모리, Ollama 프로세스)
+  - 토큰 처리 성능 측정 (TPS, 레이턴시)
+  - 통계 분석 (평균, 중간값, p95, p99)
+  - 모델 간 비교 리포트 자동 생성
+- [✓] 의존성 패키지 정리 (psutil, python-dotenv 추가)
+
+#### 🚧 진행 중
+- [ ] RAG 성능 최적화 (청크 크기, 검색 전략)
+- [ ] 프롬프트 엔지니어링 및 테스트
+- [ ] 임베딩 모델 의학 도메인 특화
+
+#### 📅 예정 작업
+
+**Phase 1: RAG & 프롬프트 최적화 (진행 중)**
+- [ ] RAG 성능 최적화 (청크 크기, 검색 전략)
+- [ ] 프롬프트 엔지니어링 및 최적화
+- [ ] 임베딩 모델 의학 도메인 특화
+
+**Phase 2: 모델 추상화 (3-4일)**
+- [ ] LLM Provider 추상화 계층 구현
+- [ ] 환경별 자동 전환 (Ollama/Transformers)
+- [ ] 모델 비교 테스트 (Solar vs Qwen2.5 vs Llama3.2)
+
+**Phase 3: API 개발 (1주)**
+- [ ] FastAPI 서버 구현
+- [ ] 비동기 처리 및 배치 요청
+- [ ] API 문서화 (OpenAPI/Swagger)
+
+**Phase 4: AWS 배포 (3-4일)**
+- [ ] Docker 이미지 최적화 (CPU/GPU 버전)
+- [ ] EC2 CloudFormation 템플릿
+- [ ] CI/CD 파이프라인
+
+### 기술 의사결정 사항
+
+1. **LLM 모델**
+   - 현재: GPT-OSS 20B (로컬 테스트, 우수한 성능)
+   - AWS: GPT-OSS/EXAONE with Transformers
+   - 대안: Qwen2.5, Llama3.2, Solar
+
+2. **배포 전략**
+   - MVP: EC2 t3.large (CPU)
+   - 프로덕션: GPU 인스턴스 or SageMaker
+
+3. **모델 서빙**
+   - 로컬: Ollama
+   - AWS: Transformers + FastAPI
+   - 고성능: vLLM/TGI
+
+### 팀 협업 분담
 
 #### RAG 최적화
 - [ ] 청크 크기 및 오버랩 최적화
@@ -334,17 +422,9 @@ OLLAMA_HOST=ollama
 - [ ] A/B 테스트 프레임워크
 - [ ] 실시간 모니터링 대시보드
 
-### 백엔드 (담당: 타 개발팀)
-- [ ] FastAPI 서버 구현
-- [ ] 인증/인가 시스템
-- [ ] 데이터베이스 설계
-- [ ] API 엔드포인트 구현
-
-### 프론트엔드 (담당: 타 개발팀)
-- [ ] 의사용 대시보드
-- [ ] 실시간 대화 기록 UI
-- [ ] 요약 노트 편집기
-- [ ] 환자 정보 관리
+- **RAG & 모델 최적화**: 현재 개발자
+- **백엔드 API**: 타 개발팀 (예정)
+- **프론트엔드 UI**: 타 개발팀 (예정)
 
 ## 기여 방법
 
