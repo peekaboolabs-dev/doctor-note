@@ -3,7 +3,15 @@
 의사-환자 대화를 자동으로 분석하여 구조화된 상담 요약 노트를 생성하는 AI 시스템입니다.
 한국 의료진 국가시험 데이터셋(KorMedMCQA) 기반 RAG를 활용하여 정확하고 전문적인 의료 요약을 제공합니다.
 
-## 🚀 최신 업데이트 (2025.08.10)
+## 🚀 최신 업데이트 (2025.08.11)
+
+### 🔧 프로젝트 구조 개선
+- **모듈 구조 재구성**: 기능별 디렉토리 분리로 유지보수성 향상
+  - `src/models/benchmark/`: 벤치마크 관련 모듈
+  - `src/models/rag/`: RAG 시스템 모듈  
+  - `src/models/summarizer/`: 요약 시스템 모듈
+- **테스트 구조 개선**: `run_all_benchmarks.py`를 tests 디렉토리로 이동
+- **Import 경로 정리**: 계층적 모듈 구조로 명확한 의존성 관리
 
 ### ⚠️ 프롬프트 최적화 실험 결과 (중요)
 - **실험 내용**: CoT, Few-shot Learning, Medical Domain 등 5가지 전략 테스트
@@ -147,7 +155,7 @@ python main.py --mode summarize --dialogue_file data/sample_dialogues.json
 
 ### 2. 하이브리드 RAG 테스트
 ```python
-from src.models.hybrid_rag_system import HybridMedicalRAG
+from src.models.rag.hybrid_rag_system import HybridMedicalRAG
 
 # 하이브리드 RAG 초기화
 hybrid_rag = HybridMedicalRAG(
@@ -167,7 +175,7 @@ results = hybrid_rag.hybrid_search(
 python main.py --mode benchmark --test_file data/sample_dialogues.json
 
 # 전체 모델 비교
-python src/models/run_all_benchmarks.py
+python tests/run_all_benchmarks.py
 ```
 
 ## 실행 예시
@@ -260,11 +268,17 @@ doctor-note/
 │
 ├── src/
 │   ├── models/
-│   │   ├── medical_rag_system.py     # 기본 RAG 시스템
-│   │   ├── hybrid_rag_system.py      # 하이브리드 RAG (신규)
-│   │   ├── dialogue_summarizer.py    # 대화 요약 엔진
-│   │   ├── benchmark_runner.py       # 성능 벤치마크
-│   │   └── run_all_benchmarks.py     # 전체 모델 비교
+│   │   ├── __init__.py                   # 모듈 초기화
+│   │   ├── benchmark/                    # 벤치마크 모듈
+│   │   │   ├── __init__.py
+│   │   │   └── benchmark_runner.py       # 성능 벤치마크
+│   │   ├── rag/                          # RAG 시스템 모듈
+│   │   │   ├── __init__.py
+│   │   │   ├── medical_rag_system.py     # 기본 RAG 시스템
+│   │   │   └── hybrid_rag_system.py      # 하이브리드 RAG
+│   │   └── summarizer/                   # 요약 시스템 모듈
+│   │       ├── __init__.py
+│   │       └── dialogue_summarizer.py    # 대화 요약 엔진
 │   │
 │   ├── utils/
 │   │   ├── config.py             # 설정 관리
@@ -277,7 +291,8 @@ doctor-note/
 ├── benchmark_results/             # 벤치마크 결과 저장
 ├── tests/                        # 테스트 코드
 │   ├── __init__.py
-│   └── test_hybrid_rag.py      # 하이브리드 RAG 테스트
+│   ├── test_hybrid_rag.py      # 하이브리드 RAG 테스트
+│   └── run_all_benchmarks.py   # 전체 모델 벤치마크
 ├── main.py                       # 메인 엔트리포인트
 ├── requirements.txt             # 의존성 패키지
 ├── .env.example                 # 환경변수 예시
@@ -489,6 +504,6 @@ doctor-note/
 
 ---
 
-**Last Updated**: 2025.08.10  
-**Version**: 0.2.0 (Hybrid RAG Update)  
+**Last Updated**: 2025.08.11  
+**Version**: 0.2.1 (Project Structure Refactoring)  
 **Status**: Active Development
