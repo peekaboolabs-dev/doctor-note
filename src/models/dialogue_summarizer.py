@@ -11,6 +11,7 @@ from langchain_ollama import OllamaLLM
 from langchain.prompts import PromptTemplate
 from langchain.schema import Document
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from langchain.callbacks.base import BaseCallbackHandler
 
 from src.models.medical_rag_system import MedicalRAGSystem
 from src.utils.logger import get_logger
