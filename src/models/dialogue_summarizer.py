@@ -14,6 +14,7 @@ from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.callbacks.base import BaseCallbackHandler
 
 from src.models.medical_rag_system import MedicalRAGSystem
+from src.models.hybrid_rag_system import HybridMedicalRAG
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -51,19 +52,30 @@ class DialogueSummarizer:
     def __init__(
         self,
         rag_system: Optional[MedicalRAGSystem] = None,
+        hybrid_rag_system: Optional[HybridMedicalRAG] = None,
         ollama_model: str = "solar",
         ollama_host: str = "localhost",
         ollama_port: int = 11434,
-        streaming: bool = True
+        streaming: bool = True,
+        use_hybrid: bool = True
     ):
         """
         Args:
-            rag_system: 의학 RAG 시스템
+            rag_system: 의학 RAG 시스템 (기존 방식)
+            hybrid_rag_system: 하이브리드 RAG 시스템 (BM25+Dense)
             ollama_model: Ollama 모델명
             ollama_host: Ollama 서버 호스트
             ollama_port: Ollama 서버 포트
+            streaming: 스트리밍 출력 여부
+            use_hybrid: 하이브리드 RAG 사용 여부
         """
-        self.rag_system = rag_system or MedicalRAGSystem()
+        self.use_hybrid = use_hybrid
+        if use_hybrid and hybrid_rag_system:
+            self.hybrid_rag = hybrid_rag_system
+            self.rag_system = None
+        else:
+            self.rag_system = rag_system or MedicalRAGSystem()
+            self.hybrid_rag = None
         self.streaming = streaming
         
         # 스트리밍 콜백 설정
@@ -235,12 +247,28 @@ JSON:"""
         if entities.diagnoses:
             queries.append(" ".join(entities.diagnoses))
         
-        # RAG 검색
+        if entities.medications:
+            # 약물명과 용량 정보 포함
+            med_query = " ".join(entities.medications[:2])
+            queries.append(med_query)
+        
+        # 하이브리드 RAG 또는 기존 RAG 사용
         all_contexts = []
-        for query in queries:
-            if query:
-                context = self.rag_system.get_relevant_medical_context(query, k=3)
-                all_contexts.append(context)
+        
+        if self.use_hybrid and self.hybrid_rag:
+            # 하이브리드 검색 사용
+            for query in queries:
+                if query:
+                    results = self.hybrid_rag.hybrid_search(query, top_k=3)
+                    for result in results:
+                        context = f"[관련도: {result['score']:.2f}] {result['content']}"
+                        all_contexts.append(context)
+        else:
+            # 기존 RAG 검색
+            for query in queries:
+                if query:
+                    context = self.rag_system.get_relevant_medical_context(query, k=3)
+                    all_contexts.append(context)
         
         return "\n\n".join(all_contexts)
     
