@@ -13,8 +13,8 @@ from langchain.schema import Document
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.callbacks.base import BaseCallbackHandler
 
-from src.models.medical_rag_system import MedicalRAGSystem
-from src.models.hybrid_rag_system import HybridMedicalRAG
+from src.models.rag.medical_rag_system import MedicalRAGSystem
+from src.models.rag.hybrid_rag_system import HybridMedicalRAG
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

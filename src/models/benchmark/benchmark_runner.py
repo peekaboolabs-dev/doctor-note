@@ -11,7 +11,7 @@ import threading
 from collections import defaultdict
 import statistics as stats
 
-from src.models.summarizer.dialogue_summarizer import MedicalDialogueSummarizer
+from src.models.summarizer.dialogue_summarizer import DialogueSummarizer
 from src.models.rag.medical_rag_system import MedicalRAGSystem
 from src.utils.logger import setup_logger
 
@@ -193,7 +193,7 @@ class BenchmarkRunner:
         logger.info(f"벤치마크 시작: {model_name}")
         
         # 요약 시스템 초기화
-        summarizer = MedicalDialogueSummarizer(
+        summarizer = DialogueSummarizer(
             rag_system=self.rag_system,
             ollama_model=model_name,
             streaming=streaming
