@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
 from src.models.rag.medical_rag_system import MedicalRAGSystem, setup_medical_knowledge_base
-from src.models.summarizer.dialogue_summarizer import MedicalDialogueSummarizer
+from src.models.summarizer.dialogue_summarizer import DialogueSummarizer
 from src.utils.config import load_config
 from src.utils.logger import setup_logger
 import json
@@ -161,7 +161,7 @@ def main():
             ollama_host = config.get("ollama_host", "localhost")
             ollama_model = config.get("ollama_model", "llama2")
             
-            summarizer = MedicalDialogueSummarizer(
+            summarizer = DialogueSummarizer(
                 rag_system=rag_system,
                 ollama_model=ollama_model,
                 ollama_host=ollama_host
