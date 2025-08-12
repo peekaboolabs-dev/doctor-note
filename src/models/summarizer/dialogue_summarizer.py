@@ -1,20 +1,18 @@
 """
 의사-환자 대화 분석 및 요약 시스템
 """
+
+import json
 import re
-from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
-import json
 
-from langchain_ollama import OllamaLLM
-from langchain.prompts import PromptTemplate
-from langchain.schema import Document
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain.callbacks.base import BaseCallbackHandler
+from langchain.prompts import PromptTemplate
+from langchain_ollama import OllamaLLM
 
-from src.models.rag.medical_rag_system import MedicalRAGSystem
 from src.models.rag.hybrid_rag_system import HybridMedicalRAG
+from src.models.rag.medical_rag_system import MedicalRAGSystem
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -23,41 +21,43 @@ logger = get_logger(__name__)
 @dataclass
 class MedicalEntity:
     """의학적 개체 정보"""
-    symptoms: List[str] = field(default_factory=list)
-    diagnoses: List[str] = field(default_factory=list)
-    medications: List[str] = field(default_factory=list)
-    examinations: List[str] = field(default_factory=list)
-    vital_signs: Dict[str, str] = field(default_factory=dict)
-    duration: Optional[str] = None
-    severity: Optional[str] = None
+
+    symptoms: list[str] = field(default_factory=list)
+    diagnoses: list[str] = field(default_factory=list)
+    medications: list[str] = field(default_factory=list)
+    examinations: list[str] = field(default_factory=list)
+    vital_signs: dict[str, str] = field(default_factory=dict)
+    duration: str | None = None
+    severity: str | None = None
 
 
 @dataclass
 class ConsultationSummary:
     """상담 요약 정보"""
+
     chief_complaint: str
     present_illness: str
     medical_entities: MedicalEntity
     assessment: str
-    plan: List[str]
-    follow_up: Optional[str] = None
-    warnings: List[str] = field(default_factory=list)
+    plan: list[str]
+    follow_up: str | None = None
+    warnings: list[str] = field(default_factory=list)
     confidence_score: float = 0.0
-    references: List[Dict[str, str]] = field(default_factory=list)
+    references: list[dict[str, str]] = field(default_factory=list)
 
 
 class DialogueSummarizer:
     """의사-환자 대화 요약 시스템"""
-    
+
     def __init__(
         self,
-        rag_system: Optional[MedicalRAGSystem] = None,
-        hybrid_rag_system: Optional[HybridMedicalRAG] = None,
+        rag_system: MedicalRAGSystem | None = None,
+        hybrid_rag_system: HybridMedicalRAG | None = None,
         ollama_model: str = "solar",
         ollama_host: str = "localhost",
         ollama_port: int = 11434,
         streaming: bool = True,
-        use_hybrid: bool = True
+        use_hybrid: bool = True,
     ):
         """
         Args:
@@ -77,10 +77,10 @@ class DialogueSummarizer:
             self.rag_system = rag_system or MedicalRAGSystem()
             self.hybrid_rag = None
         self.streaming = streaming
-        
+
         # 스트리밍 콜백 설정
         callbacks = [StreamingStdOutCallbackHandler()] if streaming else []
-        
+
         # Ollama LLM 초기화
         self.llm = OllamaLLM(
             model=ollama_model,
@@ -88,9 +88,9 @@ class DialogueSummarizer:
             temperature=0.3,  # 의료 정보는 일관성이 중요
             top_p=0.9,
             streaming=streaming,  # 스트리밍 활성화
-            callbacks=callbacks
+            callbacks=callbacks,
         )
-        
+
         # 프롬프트 템플릿
         self.entity_extraction_prompt = PromptTemplate(
             input_variables=["dialogue"],
@@ -112,9 +112,9 @@ class DialogueSummarizer:
     "medications": ["약물명1", "약물명2"]
 }}
 
-JSON:"""
+JSON:""",
         )
-        
+
         self.summary_generation_prompt = PromptTemplate(
             input_variables=["dialogue", "entities", "medical_context"],
             template="""당신은 의료 전문가입니다. 다음 의사-환자 대화를 구조화된 상담 노트로 요약하세요.
@@ -149,49 +149,49 @@ JSON:"""
 **추적 관찰 (Follow-up)**
 재방문 시기 및 주의사항
 
-상담 노트:"""
+상담 노트:""",
         )
-        
+
         # 대화 파서 패턴
         self.dialogue_pattern = re.compile(
-            r'(의사|환자|Doctor|Patient|Dr\.|D|P)[\s:：]\s*(.+?)(?=(?:의사|환자|Doctor|Patient|Dr\.|D|P)[\s:：]|$)',
-            re.DOTALL | re.IGNORECASE
+            r"(의사|환자|Doctor|Patient|Dr\.|D|P)[\s:：]\s*(.+?)(?=(?:의사|환자|Doctor|Patient|Dr\.|D|P)[\s:：]|$)",
+            re.DOTALL | re.IGNORECASE,
         )
-        
-    def parse_dialogue(self, dialogue: str) -> List[Tuple[str, str]]:
+
+    def parse_dialogue(self, dialogue: str) -> list[tuple[str, str]]:
         """
         대화를 화자별로 파싱
-        
+
         Args:
             dialogue: 원본 대화 텍스트
-            
+
         Returns:
             [(화자, 발화내용)] 리스트
         """
         turns = []
         matches = self.dialogue_pattern.findall(dialogue)
-        
+
         for speaker, utterance in matches:
             # 화자 정규화
-            if speaker.lower() in ['의사', 'doctor', 'dr.', 'd']:
-                speaker = '의사'
+            if speaker.lower() in ["의사", "doctor", "dr.", "d"]:
+                speaker = "의사"
             else:
-                speaker = '환자'
-            
+                speaker = "환자"
+
             # 발화 내용 정리
             utterance = utterance.strip()
             if utterance:
                 turns.append((speaker, utterance))
-        
+
         return turns
-    
+
     def extract_medical_entities(self, dialogue: str) -> MedicalEntity:
         """
         대화에서 의학적 개체 추출
-        
+
         Args:
             dialogue: 대화 텍스트
-            
+
         Returns:
             추출된 의학적 개체 정보
         """
@@ -199,62 +199,62 @@ JSON:"""
             # LLM을 통한 개체 추출 (새로운 방식)
             chain = self.entity_extraction_prompt | self.llm
             result = chain.invoke({"dialogue": dialogue})
-            
+
             # JSON 파싱 (코드블록 제거)
             if result.strip().startswith("```"):
                 # 코드블록 제거
-                lines = result.strip().split('\n')
-                json_content = '\n'.join(lines[1:-1])  # 첫줄과 마지막줄 제거
+                lines = result.strip().split("\n")
+                json_content = "\n".join(lines[1:-1])  # 첫줄과 마지막줄 제거
             else:
                 json_content = result
-                
+
             entities_dict = json.loads(json_content)
-            
+
             # MedicalEntity 객체로 변환
             entities = MedicalEntity(
-                symptoms=entities_dict.get('symptoms', []),
-                duration=entities_dict.get('duration'),
-                severity=entities_dict.get('severity'),
-                vital_signs=entities_dict.get('vital_signs', {}),
-                examinations=entities_dict.get('examinations', []),
-                diagnoses=entities_dict.get('diagnoses', []),
-                medications=entities_dict.get('medications', [])
+                symptoms=entities_dict.get("symptoms", []),
+                duration=entities_dict.get("duration"),
+                severity=entities_dict.get("severity"),
+                vital_signs=entities_dict.get("vital_signs", {}),
+                examinations=entities_dict.get("examinations", []),
+                diagnoses=entities_dict.get("diagnoses", []),
+                medications=entities_dict.get("medications", []),
             )
-            
+
             logger.info(f"추출된 의학 개체: {entities}")
             return entities
-            
+
         except Exception as e:
             logger.error(f"의학 개체 추출 실패: {e}")
             return MedicalEntity()
-    
+
     def get_medical_context(self, entities: MedicalEntity) -> str:
         """
         추출된 개체를 기반으로 관련 의학 정보 검색
-        
+
         Args:
             entities: 의학적 개체 정보
-            
+
         Returns:
             관련 의학 컨텍스트
         """
         # 검색 쿼리 구성
         queries = []
-        
+
         if entities.symptoms:
             queries.append(" ".join(entities.symptoms[:3]))  # 주요 증상
-        
+
         if entities.diagnoses:
             queries.append(" ".join(entities.diagnoses))
-        
+
         if entities.medications:
             # 약물명과 용량 정보 포함
             med_query = " ".join(entities.medications[:2])
             queries.append(med_query)
-        
+
         # 하이브리드 RAG 또는 기존 RAG 사용
         all_contexts = []
-        
+
         if self.use_hybrid and self.hybrid_rag:
             # 하이브리드 검색 사용
             for query in queries:
@@ -269,43 +269,42 @@ JSON:"""
                 if query:
                     context = self.rag_system.get_relevant_medical_context(query, k=3)
                     all_contexts.append(context)
-        
+
         return "\n\n".join(all_contexts)
-    
+
     def generate_summary(
-        self,
-        dialogue: str,
-        entities: MedicalEntity,
-        medical_context: str
+        self, dialogue: str, entities: MedicalEntity, medical_context: str
     ) -> ConsultationSummary:
         """
         구조화된 상담 요약 생성
-        
+
         Args:
             dialogue: 대화 내용
             entities: 추출된 의학 개체
             medical_context: 관련 의학 정보
-            
+
         Returns:
             상담 요약
         """
         try:
             # 요약 생성 (새로운 방식)
             chain = self.summary_generation_prompt | self.llm
-            summary_text = chain.invoke({
-                "dialogue": dialogue,
-                "entities": json.dumps(entities.__dict__, ensure_ascii=False),
-                "medical_context": medical_context
-            })
-            
+            summary_text = chain.invoke(
+                {
+                    "dialogue": dialogue,
+                    "entities": json.dumps(entities.__dict__, ensure_ascii=False),
+                    "medical_context": medical_context,
+                }
+            )
+
             # 요약 파싱
             summary = self._parse_summary_text(summary_text, entities)
-            
+
             # 신뢰도 점수 계산 (간단한 휴리스틱)
             summary.confidence_score = self._calculate_confidence(entities, summary)
-            
+
             return summary
-            
+
         except Exception as e:
             logger.error(f"요약 생성 실패: {e}")
             # 기본 요약 반환
@@ -315,73 +314,71 @@ JSON:"""
                 medical_entities=entities,
                 assessment="평가 불가",
                 plan=["재평가 필요"],
-                confidence_score=0.0
+                confidence_score=0.0,
             )
-    
+
     def _parse_summary_text(
-        self,
-        summary_text: str,
-        entities: MedicalEntity
+        self, summary_text: str, entities: MedicalEntity
     ) -> ConsultationSummary:
         """상담 요약 텍스트 파싱"""
         sections = {
-            'chief_complaint': '',
-            'present_illness': '',
-            'assessment': '',
-            'plan': [],
-            'follow_up': ''
+            "chief_complaint": "",
+            "present_illness": "",
+            "assessment": "",
+            "plan": [],
+            "follow_up": "",
         }
-        
+
         # 섹션별 파싱
         current_section = None
-        lines = summary_text.split('\n')
-        
+        lines = summary_text.split("\n")
+
         for line in lines:
             line = line.strip()
             if not line:
                 continue
-                
+
             # 섹션 헤더 확인
-            if '주호소' in line or 'Chief Complaint' in line:
-                current_section = 'chief_complaint'
-            elif '현병력' in line or 'Present Illness' in line:
-                current_section = 'present_illness'
-            elif '평가' in line or 'Assessment' in line:
-                current_section = 'assessment'
-            elif '계획' in line or 'Plan' in line:
-                current_section = 'plan'
-            elif '추적' in line or 'Follow-up' in line:
-                current_section = 'follow_up'
+            if "주호소" in line or "Chief Complaint" in line:
+                current_section = "chief_complaint"
+            elif "현병력" in line or "Present Illness" in line:
+                current_section = "present_illness"
+            elif "평가" in line or "Assessment" in line:
+                current_section = "assessment"
+            elif "계획" in line or "Plan" in line:
+                current_section = "plan"
+            elif "추적" in line or "Follow-up" in line:
+                current_section = "follow_up"
             else:
                 # 내용 추가
-                if current_section == 'plan' and line.startswith(('1.', '2.', '3.', '-', '•')):
-                    sections['plan'].append(line.lstrip('123.-• '))
-                elif current_section and current_section != 'plan':
-                    sections[current_section] += line + ' '
-        
+                if current_section == "plan" and line.startswith(
+                    ("1.", "2.", "3.", "-", "•")
+                ):
+                    sections["plan"].append(line.lstrip("123.-• "))
+                elif current_section and current_section != "plan":
+                    sections[current_section] += line + " "
+
         # 주호소가 비어있으면 증상에서 생성
-        if not sections['chief_complaint'].strip() and entities.symptoms:
-            sections['chief_complaint'] = f"{', '.join(entities.symptoms[:2])}"
+        if not sections["chief_complaint"].strip() and entities.symptoms:
+            sections["chief_complaint"] = f"{', '.join(entities.symptoms[:2])}"
             if entities.duration:
-                sections['chief_complaint'] += f" ({entities.duration})"
-        
+                sections["chief_complaint"] += f" ({entities.duration})"
+
         return ConsultationSummary(
-            chief_complaint=sections['chief_complaint'].strip() or "증상 정보 없음",
-            present_illness=sections['present_illness'].strip() or "현병력 정보 없음",
+            chief_complaint=sections["chief_complaint"].strip() or "증상 정보 없음",
+            present_illness=sections["present_illness"].strip() or "현병력 정보 없음",
             medical_entities=entities,
-            assessment=sections['assessment'].strip() or "평가 정보 없음",
-            plan=sections['plan'] or ["추가 평가 필요"],
-            follow_up=sections['follow_up'].strip() if sections['follow_up'] else None
+            assessment=sections["assessment"].strip() or "평가 정보 없음",
+            plan=sections["plan"] or ["추가 평가 필요"],
+            follow_up=sections["follow_up"].strip() if sections["follow_up"] else None,
         )
-    
+
     def _calculate_confidence(
-        self,
-        entities: MedicalEntity,
-        summary: ConsultationSummary
+        self, entities: MedicalEntity, summary: ConsultationSummary
     ) -> float:
         """요약 신뢰도 점수 계산"""
         score = 0.0
-        
+
         # 개체 추출 완성도
         if entities.symptoms:
             score += 0.3
@@ -389,7 +386,7 @@ JSON:"""
             score += 0.2
         if entities.medications:
             score += 0.2
-            
+
         # 요약 완성도
         if summary.chief_complaint != "주호소 없음":
             score += 0.1
@@ -397,49 +394,49 @@ JSON:"""
             score += 0.1
         if len(summary.plan) > 1:
             score += 0.1
-            
+
         return min(score, 1.0)
-    
+
     def summarize_dialogue(
         self,
         dialogue: str,
-        patient_id: Optional[str] = None,
-        session_id: Optional[str] = None
-    ) -> Dict[str, any]:
+        patient_id: str | None = None,
+        session_id: str | None = None,
+    ) -> dict[str, any]:
         """
         의사-환자 대화를 요약
-        
+
         Args:
             dialogue: 대화 내용
             patient_id: 환자 ID
             session_id: 세션 ID
-            
+
         Returns:
             요약 결과 딕셔너리
         """
         logger.info(f"대화 요약 시작 - Patient: {patient_id}, Session: {session_id}")
-        
+
         # 1. 대화 파싱
         print("\n[1/4] 대화 파싱 중...")
         turns = self.parse_dialogue(dialogue)
         logger.info(f"파싱된 대화 턴 수: {len(turns)}")
-        
+
         # 2. 의학 개체 추출
         print("\n[2/4] 의학 정보 추출 중...")
         if self.streaming:
             print(">>> ", end="", flush=True)
         entities = self.extract_medical_entities(dialogue)
-        
+
         # 3. 관련 의학 정보 검색
         print("\n[3/4] 관련 의학 지식 검색 중...")
         medical_context = self.get_medical_context(entities)
-        
+
         # 4. 요약 생성
         print("\n[4/4] 상담 노트 생성 중...")
         if self.streaming:
             print(">>> ", end="", flush=True)
         summary = self.generate_summary(dialogue, entities, medical_context)
-        
+
         # 5. 결과 구성
         result = {
             "patient_id": patient_id,
@@ -459,21 +456,21 @@ JSON:"""
                 "assessment": summary.assessment,
                 "plan": summary.plan,
                 "follow_up": summary.follow_up,
-                "warnings": summary.warnings
+                "warnings": summary.warnings,
             },
             "confidence_score": summary.confidence_score,
-            "references": summary.references
+            "references": summary.references,
         }
-        
+
         logger.info(f"대화 요약 완료 - 신뢰도: {summary.confidence_score:.2f}")
-        
+
         return result
 
 
 if __name__ == "__main__":
     # 테스트
     summarizer = DialogueSummarizer()
-    
+
     test_dialogue = """
     의사: 안녕하세요. 어떤 증상으로 오셨나요?
     환자: 3일 전부터 기침이 심하고 열이 나요.
@@ -485,6 +482,6 @@ if __name__ == "__main__":
     환자: 조금 답답한 느낌이 있어요.
     의사: 청진 결과 폐에 수포음이 들립니다. 폐렴이 의심되니 흉부 X-ray를 찍어보겠습니다.
     """
-    
+
     result = summarizer.summarize_dialogue(test_dialogue, "P12345", "S67890")
     print(json.dumps(result, ensure_ascii=False, indent=2))
