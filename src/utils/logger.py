@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 
-def setup_logger(name, log_file=None, level=logging.INFO):
+def setup_logger(name, log_file=None, level=logging.DEBUG):
     """
     로거 설정
 
