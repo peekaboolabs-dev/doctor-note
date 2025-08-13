@@ -7,10 +7,9 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.prompts import PromptTemplate
-from langchain_ollama import OllamaLLM
 
+from src.models.llm import LLMConfig, LLMFactory
 from src.models.rag.hybrid_rag_system import HybridMedicalRAG
 from src.models.rag.medical_rag_system import MedicalRAGSystem
 from src.utils.logger import get_logger
@@ -53,7 +52,10 @@ class DialogueSummarizer:
         self,
         rag_system: MedicalRAGSystem | None = None,
         hybrid_rag_system: HybridMedicalRAG | None = None,
-        ollama_model: str = "solar",
+        llm_config: LLMConfig | None = None,
+        llm_instance: any | None = None,  # 기존 LLM 인스턴스 재사용
+        # 기존 Ollama 호환성을 위한 파라미터
+        ollama_model: str | None = None,
         ollama_host: str = "localhost",
         ollama_port: int = 11434,
         streaming: bool = True,
@@ -63,7 +65,8 @@ class DialogueSummarizer:
         Args:
             rag_system: 의학 RAG 시스템 (기존 방식)
             hybrid_rag_system: 하이브리드 RAG 시스템 (BM25+Dense)
-            ollama_model: Ollama 모델명
+            llm_config: LLM 설정 (새로운 방식)
+            ollama_model: Ollama 모델명 (하위 호환성)
             ollama_host: Ollama 서버 호스트
             ollama_port: Ollama 서버 포트
             streaming: 스트리밍 출력 여부
@@ -78,20 +81,46 @@ class DialogueSummarizer:
             self.hybrid_rag = None
         self.streaming = streaming
 
-        # 스트리밍 콜백 설정
-        callbacks = [StreamingStdOutCallbackHandler()] if streaming else []
-
-        # Ollama LLM 초기화
-        self.llm = OllamaLLM(
-            model=ollama_model,
-            base_url=f"http://{ollama_host}:{ollama_port}",
-            temperature=0.3,  # 의료 정보는 일관성이 중요
-            top_p=0.9,
-            streaming=streaming,  # 스트리밍 활성화
-            callbacks=callbacks,
-        )
+        # LLM 초기화 (새로운 방식)
+        if llm_instance:
+            # 기존 LLM 인스턴스 재사용 (메모리 절약)
+            self.llm = llm_instance
+            self.llm_config = getattr(llm_instance, "config", None)
+            logger.info(f"Reusing existing LLM instance: {self.llm.get_model_info()}")
+        elif llm_config:
+            # 새로운 설정 방식
+            self.llm_config = llm_config
+            self.llm = LLMFactory.create(self.llm_config)
+            logger.info(f"Created new LLM: {self.llm.get_model_info()}")
+        elif ollama_model:
+            # 기존 Ollama 호환 모드
+            self.llm_config = LLMConfig(
+                model_type="ollama",
+                model_name=ollama_model,
+                ollama_host=ollama_host,
+                ollama_port=ollama_port,
+                temperature=0.3,
+                top_p=0.9,
+                streaming=streaming,
+            )
+            self.llm = LLMFactory.create(self.llm_config)
+            logger.info(f"Created Ollama LLM: {self.llm.get_model_info()}")
+        else:
+            # 기본값
+            self.llm_config = LLMConfig(
+                model_type="ollama",
+                model_name="solar",
+                ollama_host=ollama_host,
+                ollama_port=ollama_port,
+                temperature=0.3,
+                top_p=0.9,
+                streaming=streaming,
+            )
+            self.llm = LLMFactory.create(self.llm_config)
+            logger.info(f"Created default LLM: {self.llm.get_model_info()}")
 
         # 프롬프트 템플릿
+        # llama.cpp와 ollama 모두 호환되도록 명확한 지시
         self.entity_extraction_prompt = PromptTemplate(
             input_variables=["dialogue"],
             template="""다음 의사-환자 대화에서 의학적 정보를 추출하세요.
@@ -99,9 +128,12 @@ class DialogueSummarizer:
 대화:
 {dialogue}
 
-중요: 한국어로 작성하세요.
+중요:
+1. 추론 과정이나 설명 없이 JSON만 출력하세요
+2. 한국어로 작성하세요
+3. JSON 형식만 반환하세요
 
-다음 형식으로 JSON을 반환하세요:
+출력 형식:
 {{
     "symptoms": ["증상1", "증상2"],
     "duration": "증상 지속 기간",
@@ -112,7 +144,7 @@ class DialogueSummarizer:
     "medications": ["약물명1", "약물명2"]
 }}
 
-JSON:""",
+JSON만 출력:""",
         )
 
         self.summary_generation_prompt = PromptTemplate(
@@ -128,9 +160,12 @@ JSON:""",
 관련 의학 지식:
 {medical_context}
 
-중요: 대화 내용을 기반으로 정확하게 작성하세요.
+지시사항:
+- 추론 과정이나 설명 없이 바로 상담 노트를 작성하세요
+- 아래 형식을 정확히 따라 작성하세요
+- [BEGIN_NOTE]와 [END_NOTE] 태그 사이에 노트를 작성하세요
 
-다음 형식으로 상담 노트를 작성하세요:
+[BEGIN_NOTE]
 
 **주호소 (Chief Complaint)**
 환자가 방문한 주된 이유를 한 문장으로 작성
@@ -149,7 +184,7 @@ JSON:""",
 **추적 관찰 (Follow-up)**
 재방문 시기 및 주의사항
 
-상담 노트:""",
+[END_NOTE]""",
         )
 
         # 대화 파서 패턴
@@ -196,17 +231,50 @@ JSON:""",
             추출된 의학적 개체 정보
         """
         try:
-            # LLM을 통한 개체 추출 (새로운 방식)
-            chain = self.entity_extraction_prompt | self.llm
-            result = chain.invoke({"dialogue": dialogue})
+            # 프롬프트 생성
+            prompt = self.entity_extraction_prompt.format(dialogue=dialogue)
 
-            # JSON 파싱 (코드블록 제거)
+            # LLM을 통한 개체 추출
+            if self.streaming:
+                print(">>> ", end="", flush=True)
+                result_parts = []
+                for chunk in self.llm.stream(prompt):
+                    print(chunk, end="", flush=True)
+                    result_parts.append(chunk)
+                print()  # 줄바꿈
+                result = "".join(result_parts)
+            else:
+                response = self.llm.generate(prompt)
+                result = response.text
+
+            # JSON 파싱 (코드블록 제거 및 정리)
             if result.strip().startswith("```"):
                 # 코드블록 제거
                 lines = result.strip().split("\n")
-                json_content = "\n".join(lines[1:-1])  # 첫줄과 마지막줄 제거
+                # json 또는 JSON 태그가 있는 경우 제거
+                if lines[0].lower().endswith(("json", "```")):
+                    lines = lines[1:]
+                if lines[-1] == "```":
+                    lines = lines[:-1]
+                json_content = "\n".join(lines)
             else:
                 json_content = result
+
+            # JSON 문자열 정리
+            json_content = json_content.strip()
+            # 제어 문자 제거
+            json_content = json_content.replace("\t", "    ").replace("\r", "")
+
+            # 불완전한 JSON 처리
+            if json_content and not json_content.endswith("}"):
+                open_braces = json_content.count("{") - json_content.count("}")
+                json_content += "}" * open_braces
+
+            # JSON의 첫 {부터 마지막 }까지만 추출
+            start_idx = json_content.find("{")
+            end_idx = json_content.rfind("}")
+            if start_idx != -1 and end_idx != -1:
+                json_content = json_content[start_idx : end_idx + 1]
 
             entities_dict = json.loads(json_content)
 
@@ -287,15 +355,25 @@ JSON:""",
             상담 요약
         """
         try:
-            # 요약 생성 (새로운 방식)
-            chain = self.summary_generation_prompt | self.llm
-            summary_text = chain.invoke(
-                {
-                    "dialogue": dialogue,
-                    "entities": json.dumps(entities.__dict__, ensure_ascii=False),
-                    "medical_context": medical_context,
-                }
+            # 프롬프트 생성
+            prompt = self.summary_generation_prompt.format(
+                dialogue=dialogue,
+                entities=json.dumps(entities.__dict__, ensure_ascii=False),
+                medical_context=medical_context,
             )
+
+            # 요약 생성
+            if self.streaming:
+                print(">>> ", end="", flush=True)
+                summary_parts = []
+                for chunk in self.llm.stream(prompt):
+                    print(chunk, end="", flush=True)
+                    summary_parts.append(chunk)
+                print()  # 줄바꿈
+                summary_text = "".join(summary_parts)
+            else:
+                response = self.llm.generate(prompt)
+                summary_text = response.text
 
             # 요약 파싱
             summary = self._parse_summary_text(summary_text, entities)
@@ -443,6 +521,7 @@ JSON:""",
             "session_id": session_id,
             "timestamp": datetime.now().isoformat(),
             "dialogue_turns": len(turns),
+            "llm_model": self.llm.get_model_info(),
             "summary": {
                 "chief_complaint": summary.chief_complaint,
                 "present_illness": summary.present_illness,

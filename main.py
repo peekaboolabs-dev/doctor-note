@@ -142,14 +142,43 @@ def main():
 
             logger.info("대화 요약 시작...")
 
-            # 요약 시스템 초기화
-            ollama_host = config.get("ollama_host", "localhost")
-            ollama_model = config.get("ollama_model", "llama2")
+            # LLM 설정 구성 (새로운 통합 방식)
+            from src.models.llm import LLMConfig
 
+            llm_type = config.get("llm_type", "ollama")
+
+            if llm_type == "ollama":
+                # 기존 Ollama 방식
+                llm_config = LLMConfig(
+                    model_type="ollama",
+                    model_name=config.get("ollama_model", "solar"),
+                    ollama_host=config.get("ollama_host", "localhost"),
+                    ollama_port=config.get("ollama_port", 11434),
+                    temperature=config.get("llm_temperature", 0.3),
+                    max_tokens=config.get("llm_max_tokens", 2048),
+                    streaming=config.get("llm_streaming", True),
+                )
+            elif llm_type == "llamacpp_server":
+                # llama.cpp 서버 방식
+                llm_config = LLMConfig(
+                    model_type="llamacpp_server",
+                    model_name=config.get("llm_model", "trillion-7b"),
+                    llama_server_host=config.get("llama_server_host", "localhost"),
+                    llama_server_port=config.get("llama_server_port", 8080),
+                    temperature=config.get("llm_temperature", 0.3),
+                    max_tokens=config.get("llm_max_tokens", 2048),
+                    streaming=config.get("llm_streaming", True),
+                )
+            else:
+                raise ValueError(f"지원하지 않는 LLM 타입: {llm_type}")
+
+            logger.info(f"LLM 설정: {llm_type} - {llm_config.model_name}")
+
+            # 요약 시스템 초기화
             summarizer = DialogueSummarizer(
                 rag_system=rag_system,
-                ollama_model=ollama_model,
-                ollama_host=ollama_host,
+                llm_config=llm_config,
+                streaming=llm_config.streaming,
             )
 
             # 요약 실행
@@ -166,6 +195,7 @@ def main():
         elif args.mode == "benchmark":
             # 벤치마크 모드
             from src.models.benchmark.benchmark_runner import BenchmarkRunner
+            from src.models.llm import LLMConfig
 
             test_file = args.test_file or "data/sample_dialogues.json"
 
@@ -176,12 +206,48 @@ def main():
                 data = json.load(f)
                 test_dialogues = data.get("dialogues", [])
 
+            # LLM 설정 구성
+            llm_type = config.get("llm_type", "ollama")
+
+            if llm_type == "ollama":
+                llm_config = LLMConfig(
+                    model_type="ollama",
+                    model_name=config.get("ollama_model", "solar"),
+                    ollama_host=config.get("ollama_host", "localhost"),
+                    ollama_port=config.get("ollama_port", 11434),
+                    temperature=config.get("llm_temperature", 0.3),
+                    max_tokens=config.get("llm_max_tokens", 2048),
+                    streaming=False,  # 벤치마크는 스트리밍 없이
+                )
+                model_name = llm_config.model_name
+            elif llm_type == "llamacpp_server":
+                llm_config = LLMConfig(
+                    model_type="llamacpp_server",
+                    model_name=config.get("llm_model", "trillion-7b"),
+                    llama_server_host=config.get("llama_server_host", "localhost"),
+                    llama_server_port=config.get("llama_server_port", 8080),
+                    temperature=config.get("llm_temperature", 0.3),
+                    max_tokens=config.get("llm_max_tokens", 2048),
+                    streaming=False,
+                )
+                model_name = f"llamacpp_{llm_config.model_name}"
+            else:
+                raise ValueError(f"지원하지 않는 LLM 타입: {llm_type}")
+
+            logger.info(f"벤치마크 LLM: {llm_type} - {model_name}")
+
             # 벤치마크 실행
             runner = BenchmarkRunner()
 
-            # 현재 설정된 모델로 벤치마크 실행
-            model_name = config.get("ollama_model", "solar")
-            results = runner.run_model_benchmark(model_name, test_dialogues)
+            # LLM 설정을 사용한 벤치마크 (기존 방식과 호환)
+            if llm_type == "ollama":
+                results = runner.run_model_benchmark(model_name, test_dialogues)
+            else:
+                # llama.cpp용 새로운 벤치마크 메서드 필요
+                # 임시로 기존 방식 사용
+                results = runner.run_model_benchmark(
+                    model_name, test_dialogues, llm_config=llm_config
+                )
 
             # 결과 저장
             saved_file = runner.save_results(results)

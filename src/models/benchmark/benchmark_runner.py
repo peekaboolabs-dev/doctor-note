@@ -196,6 +196,7 @@ class BenchmarkRunner:
         test_dialogues: list[dict[str, Any]],
         streaming: bool = True,
         measure_resources: bool = True,
+        llm_config: Any = None,  # LLM 설정 추가
     ) -> dict[str, Any]:
         """
         특정 모델로 벤치마크 실행
@@ -212,9 +213,16 @@ class BenchmarkRunner:
         logger.info(f"벤치마크 시작: {model_name}")
 
         # 요약 시스템 초기화
-        summarizer = DialogueSummarizer(
-            rag_system=self.rag_system, ollama_model=model_name, streaming=streaming
-        )
+        if llm_config:
+            # 새로운 LLM 설정 방식
+            summarizer = DialogueSummarizer(
+                rag_system=self.rag_system, llm_config=llm_config, streaming=streaming
+            )
+        else:
+            # 기존 Ollama 방식 (하위 호환성)
+            summarizer = DialogueSummarizer(
+                rag_system=self.rag_system, ollama_model=model_name, streaming=streaming
+            )
 
         results = {
             "model": model_name,

@@ -168,4 +168,4 @@ logs/
 temp/
 tmp/
 *.tmp
-*.temp
+*.templlama.cpp/
