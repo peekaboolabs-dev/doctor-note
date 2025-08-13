@@ -92,8 +92,10 @@ JSON:"""
 
                     payload = {
                         "prompt": modified_prompt,
-                        "temperature": 0.2,  # 더 결정적으로
-                        "top_p": 0.5,
+                        "temperature": kwargs.get(
+                            "temperature", self.temperature * 0.7
+                        ),  # JSON 추출은 더 결정적으로
+                        "top_p": kwargs.get("top_p", self.top_p * 0.5),
                         "n_predict": 800,
                         "stop": ["</s>", "<|im_end|>", "<|eot_id|>", "\n\n\n"],
                         "stream": False,
@@ -104,9 +106,7 @@ JSON:"""
                     # 일반 텍스트 생성
                     payload = {
                         "prompt": prompt,
-                        "temperature": kwargs.get(
-                            "temperature", self.temperature or 0.3
-                        ),
+                        "temperature": kwargs.get("temperature", self.temperature),
                         "top_p": kwargs.get("top_p", self.top_p or 0.9),
                         "n_predict": kwargs.get("max_tokens", self.max_tokens or 2048),
                         "stop": ["</s>", "<|im_end|>", "<|eot_id|>"],
@@ -175,7 +175,7 @@ JSON:"""
             # 일반 스트리밍
             payload = {
                 "prompt": prompt,
-                "temperature": kwargs.get("temperature", self.temperature or 0.3),
+                "temperature": kwargs.get("temperature", self.temperature),
                 "top_p": kwargs.get("top_p", self.top_p or 0.9),
                 "n_predict": kwargs.get("max_tokens", self.max_tokens or 2048),
                 "stop": ["</s>", "<|im_end|>", "<|eot_id|>"],
@@ -231,7 +231,7 @@ JSON:"""
         try:
             payload = {
                 "prompt": prompt,
-                "temperature": kwargs.get("temperature", self.temperature or 0.3),
+                "temperature": kwargs.get("temperature", self.temperature),
                 "top_p": kwargs.get("top_p", self.top_p or 0.9),
                 "n_predict": kwargs.get("max_tokens", self.max_tokens or 2048),
                 "stop": ["</s>", "<|im_end|>", "<|eot_id|>"],

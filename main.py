@@ -154,8 +154,10 @@ def main():
                     model_name=config.get("ollama_model", "solar"),
                     ollama_host=config.get("ollama_host", "localhost"),
                     ollama_port=config.get("ollama_port", 11434),
-                    temperature=config.get("llm_temperature", 0.3),
-                    max_tokens=config.get("llm_max_tokens", 2048),
+                    temperature=config.get(
+                        "llm_temperature"
+                    ),  # .env에서 가져온 값 사용
+                    max_tokens=config.get("llm_max_tokens"),
                     streaming=config.get("llm_streaming", True),
                 )
             elif llm_type == "llamacpp_server":
@@ -165,8 +167,10 @@ def main():
                     model_name=config.get("llm_model", "trillion-7b"),
                     llama_server_host=config.get("llama_server_host", "localhost"),
                     llama_server_port=config.get("llama_server_port", 8080),
-                    temperature=config.get("llm_temperature", 0.3),
-                    max_tokens=config.get("llm_max_tokens", 2048),
+                    temperature=config.get(
+                        "llm_temperature"
+                    ),  # .env에서 가져온 값 사용
+                    max_tokens=config.get("llm_max_tokens"),
                     streaming=config.get("llm_streaming", True),
                 )
             else:
@@ -227,8 +231,10 @@ def main():
                     model_name=config.get("ollama_model", "solar"),
                     ollama_host=config.get("ollama_host", "localhost"),
                     ollama_port=config.get("ollama_port", 11434),
-                    temperature=config.get("llm_temperature", 0.3),
-                    max_tokens=config.get("llm_max_tokens", 2048),
+                    temperature=config.get(
+                        "llm_temperature"
+                    ),  # .env에서 가져온 값 사용
+                    max_tokens=config.get("llm_max_tokens"),
                     streaming=False,  # 벤치마크는 스트리밍 없이
                 )
                 model_name = llm_config.model_name
@@ -238,8 +244,10 @@ def main():
                     model_name=config.get("llm_model", "trillion-7b"),
                     llama_server_host=config.get("llama_server_host", "localhost"),
                     llama_server_port=config.get("llama_server_port", 8080),
-                    temperature=config.get("llm_temperature", 0.3),
-                    max_tokens=config.get("llm_max_tokens", 2048),
+                    temperature=config.get(
+                        "llm_temperature"
+                    ),  # .env에서 가져온 값 사용
+                    max_tokens=config.get("llm_max_tokens"),
                     streaming=False,
                 )
                 model_name = f"llamacpp_{llm_config.model_name}"

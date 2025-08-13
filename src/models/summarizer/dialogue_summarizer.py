@@ -101,8 +101,9 @@ class DialogueSummarizer:
                 model_name=ollama_model,
                 ollama_host=ollama_host,
                 ollama_port=ollama_port,
-                temperature=0.3,
-                top_p=0.9,
+                # temperature, top_p는 None으로 설정하여 .env에서 가져오기
+                temperature=None,
+                top_p=None,
                 streaming=streaming,
             )
             self.llm = LLMFactory.create(self.llm_config)
@@ -114,8 +115,9 @@ class DialogueSummarizer:
                 model_name="solar",
                 ollama_host=ollama_host,
                 ollama_port=ollama_port,
-                temperature=0.3,
-                top_p=0.9,
+                # temperature, top_p는 None으로 설정하여 .env에서 가져오기
+                temperature=None,
+                top_p=None,
                 streaming=streaming,
             )
             self.llm = LLMFactory.create(self.llm_config)

@@ -2,6 +2,7 @@
 API 스키마 정의 (타 팀과의 인터페이스 표준)
 """
 
+import os
 from datetime import datetime
 from typing import Any
 
@@ -70,7 +71,9 @@ class RAGRequest(BaseModel):
     query: str = Field(..., description="사용자 질문")
     context_k: int = Field(5, description="검색할 컨텍스트 수")
     max_tokens: int = Field(500, description="최대 응답 토큰 수")
-    temperature: float = Field(0.7, description="생성 온도", ge=0, le=1)
+    temperature: float = Field(
+        float(os.getenv("LLM_TEMPERATURE", "0.3")), description="생성 온도", ge=0, le=1
+    )
     stream: bool = Field(False, description="스트리밍 응답 여부")
 
 

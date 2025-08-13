@@ -13,9 +13,9 @@ class LLMConfig:
 
     model_type: str  # "ollama", "llamacpp", "llamacpp_server"
     model_name: str  # 모델 이름
-    temperature: float = 0.3
-    top_p: float = 0.9
-    max_tokens: int = 2048
+    temperature: float | None = None  # None이면 .env에서 가져옴
+    top_p: float | None = None  # None이면 .env에서 가져옴
+    max_tokens: int | None = None  # None이면 .env에서 가져옴
     streaming: bool = True
 
     # Ollama 전용
@@ -46,11 +46,28 @@ class BaseLLM(ABC):
     """LLM 베이스 추상 클래스"""
 
     def __init__(self, config: LLMConfig):
+        from src.utils.config import load_config
+
         self.config = config
         self.model_name = config.model_name
-        self.temperature = config.temperature
-        self.top_p = config.top_p
-        self.max_tokens = config.max_tokens
+
+        # .env 설정 로드
+        env_config = load_config()
+
+        # temperature, top_p, max_tokens가 None이면 .env에서 가져오기
+        self.temperature = (
+            config.temperature
+            if config.temperature is not None
+            else env_config["llm_temperature"]
+        )
+        self.top_p = (
+            config.top_p if config.top_p is not None else env_config["llm_top_p"]
+        )
+        self.max_tokens = (
+            config.max_tokens
+            if config.max_tokens is not None
+            else env_config["llm_max_tokens"]
+        )
         self.streaming = config.streaming
 
     @abstractmethod
