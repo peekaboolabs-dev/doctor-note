@@ -1,11 +1,9 @@
 """
-llama.cpp 서버 클라이언트 - 가장 효율적인 방법
-llama.cpp 서버와 통신 (Ollama와 동일한 아키텍처)
+llama.cpp 서버 클라이언트 - v1 기반 개선
 """
 
 import asyncio
 import json
-import time
 from collections.abc import AsyncIterator, Iterator
 
 import httpx
@@ -50,145 +48,169 @@ class LlamaCppServerLLM(BaseLLM):
             logger.warning(f"Server may not be ready: {e}")
 
     def generate(self, prompt: str, **kwargs) -> LLMResponse:
-        """동기 텍스트 생성 (Chat API 사용)"""
+        """동기 텍스트 생성 - v1 기반"""
         try:
-            # 스트리밍 여부 확인
-            use_streaming = kwargs.get("streaming", self.streaming)
+            # 기본 stop 토큰
+            stop_tokens = ["<|eot_id|>", "<|im_end|>", "</s>", "[END_NOTE]", "\n\n\n"]
 
-            if use_streaming:
-                # 스트리밍으로 수집 후 전체 반환
-                logger.debug("Using streaming mode to collect response")
-                collected_text = []
-                for chunk in self.stream(prompt, **kwargs):
-                    collected_text.append(chunk)
-                    if kwargs.get("show_progress", False):
-                        print(chunk, end="", flush=True)
+            # JSON 추출 모드
+            if kwargs.get("extract_json", False) or "JSON" in prompt:
+                modified_prompt = f"""{prompt}
 
-                full_text = "".join(collected_text)
-                return LLMResponse(
-                    text=full_text,
-                    model=self.config.model_name,
-                    metadata={"backend": "llama.cpp-server", "streamed": True},
-                )
-            else:
-                # Chat API 사용
-                system_prompt = (
-                    "당신은 의료 전문가입니다. 질문에 정확하고 간결하게 답변하세요."
-                )
-
-                messages = [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ]
+Output ONLY the JSON object. No explanation. Start directly with {{ and end with }}.
+JSON:"""
 
                 payload = {
-                    "model": "gpt-oss",
-                    "messages": messages,
+                    "prompt": modified_prompt,
+                    "temperature": 0.1,
+                    "top_p": 0.5,
+                    "n_predict": 800,
+                    "stop": stop_tokens,
+                    "repeat_penalty": 1.2,
+                    "cache_prompt": True,
+                }
+            else:
+                payload = {
+                    "prompt": prompt,
                     "temperature": kwargs.get("temperature", 0.3),
                     "top_p": kwargs.get("top_p", 0.9),
-                    "max_tokens": kwargs.get("max_tokens", self.max_tokens),
-                    "stream": False,
+                    "n_predict": kwargs.get("max_tokens", self.max_tokens),
+                    "stop": stop_tokens,
+                    "repeat_penalty": 1.2,
+                    "cache_prompt": True,
                 }
 
-                logger.debug("Using chat API")
-                start_time = time.time()
+            response = self.client.post(
+                f"{self.base_url}/completion", json=payload, timeout=60.0
+            )
+            response.raise_for_status()
 
-                # Chat completions 엔드포인트 사용
-                response = self.client.post(
-                    f"{self.base_url}/v1/chat/completions", json=payload
-                )
-                response.raise_for_status()
+            data = response.json()
+            raw_content = data.get("content", "")
 
-                elapsed = time.time() - start_time
-                data = response.json()
+            # CoT 제거 - 간단한 버전
+            cleaned_content = self._clean_cot_output(raw_content)
 
-                # Chat API 응답 형식 처리
-                content = ""
-                if "choices" in data and len(data["choices"]) > 0:
-                    content = data["choices"][0].get("message", {}).get("content", "")
-                elif "content" in data:
-                    content = data.get("content", "")
+            return LLMResponse(
+                text=cleaned_content,
+                model=self.config.model_name,
+                metadata={"backend": "llama.cpp-server"},
+            )
 
-                logger.debug(f"Response received in {elapsed:.2f}s")
-
-                return LLMResponse(
-                    text=content,
-                    model=self.config.model_name,
-                    usage=data.get("usage"),
-                    metadata={"backend": "llama.cpp-server", "elapsed_time": elapsed},
-                )
-
-        except httpx.TimeoutException as e:
-            logger.error(f"Request timeout: {e}")
-            raise RuntimeError(
-                f"서버 응답 시간 초과. 서버 상태를 확인하세요: {self.base_url}"
-            ) from e
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error {e.response.status_code}: {e.response.text}")
-            raise RuntimeError(f"서버 오류: {e.response.status_code}") from e
         except Exception as e:
             logger.error(f"Generation failed: {e}")
             raise
 
+    def _clean_cot_output(self, text: str) -> str:
+        """CoT 추론 과정 제거 - 간단한 버전"""
+        import re
+
+        # [BEGIN_NOTE] 블록 추출
+        if "[BEGIN_NOTE]" in text:
+            start = text.find("[BEGIN_NOTE]")
+            end = text.find("[END_NOTE]")
+            if end != -1:
+                return text[start : end + len("[END_NOTE]")]
+            else:
+                return text[start:]
+
+        # JSON 블록 추출
+        json_pattern = r"(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})"
+        matches = re.findall(json_pattern, text, re.DOTALL)
+        if matches:
+            # 가장 완전한 JSON 선택
+            return max(matches, key=len)
+
+        # >>> 마커 이후 내용
+        if ">>>" in text:
+            parts = text.split(">>>")
+            if len(parts) > 1:
+                return parts[-1].strip()
+
+        return text
+
     def stream(self, prompt: str, **kwargs) -> Iterator[str]:
-        """스트리밍 텍스트 생성"""
+        """스트리밍 - v1 기반 개선"""
         try:
-            payload = {
-                "prompt": prompt,
-                "n_predict": kwargs.get("max_tokens", self.max_tokens),
-                "temperature": kwargs.get("temperature", self.temperature),
-                "top_p": kwargs.get("top_p", self.top_p),
-                "repeat_penalty": kwargs.get("repeat_penalty", 1.1),
-                "stop": kwargs.get("stop", ["</s>", "\n\n\n", "User:", "Assistant:"]),
-                "stream": True,
-                "cache_prompt": True,
-            }
+            stop_tokens = ["<|eot_id|>", "<|im_end|>", "</s>", "[END_NOTE]"]
 
-            logger.debug("Starting streaming request")
+            # JSON 추출 모드
+            if kwargs.get("extract_json", False):
+                modified_prompt = f"{prompt}\n\nOutput only JSON:"
+                payload = {
+                    "prompt": modified_prompt,
+                    "n_predict": kwargs.get("max_tokens", 800),
+                    "temperature": 0.1,
+                    "top_p": 0.5,
+                    "repeat_penalty": 1.2,
+                    "stop": stop_tokens,
+                    "stream": True,
+                    "cache_prompt": True,
+                }
+            else:
+                payload = {
+                    "prompt": prompt,
+                    "n_predict": kwargs.get("max_tokens", 800),
+                    "temperature": 0.3,
+                    "top_p": 0.9,
+                    "repeat_penalty": 1.2,
+                    "stop": stop_tokens,
+                    "stream": True,
+                    "cache_prompt": True,
+                }
 
-            # SSE (Server-Sent Events) 스트리밍
             with self.client.stream(
                 "POST",
                 f"{self.base_url}/completion",
                 json=payload,
-                timeout=httpx.Timeout(None),  # 스트리밍은 타임아웃 없음
+                timeout=httpx.Timeout(None),
             ) as response:
                 response.raise_for_status()
 
+                json_mode = kwargs.get("extract_json", False)
+                brace_count = 0
+                skip_until_json = json_mode  # JSON 모드에서는 처음부터 스킵
+
                 for line in response.iter_lines():
-                    if not line:
+                    if not line or not line.startswith("data: "):
                         continue
 
-                    # SSE 형식 파싱
-                    if line.startswith("data: "):
-                        json_str = line[6:]  # "data: " 제거
+                    json_str = line[6:]
+                    if json_str == "[DONE]":
+                        break
 
-                        if json_str == "[DONE]":
+                    try:
+                        data = json.loads(json_str)
+                        content = data.get("content", "")
+
+                        if json_mode:
+                            # JSON 모드: { 찾을 때까지 스킵
+                            if skip_until_json:
+                                if "{" in content:
+                                    skip_until_json = False
+                                    idx = content.index("{")
+                                    content = content[idx:]  # { 이전 제거
+                                    yield content
+                                    brace_count += content.count("{") - content.count(
+                                        "}"
+                                    )
+                                else:
+                                    continue  # { 전까지는 출력하지 않음
+                            else:
+                                yield content
+                                brace_count += content.count("{") - content.count("}")
+                                if brace_count == 0:
+                                    break
+                        else:
+                            # 일반 모드: 모든 내용 출력
+                            yield content
+
+                        if data.get("stop", False):
                             break
 
-                        try:
-                            data = json.loads(json_str)
-                            if "content" in data:
-                                content = data["content"]
-                                # 특별 토큰이 나타나면 이후 내용만 반환
-                                if "<|message|>" in content:
-                                    parts = content.split("<|message|>")
-                                    if len(parts) > 1:
-                                        yield parts[-1]
-                                else:
-                                    yield content
+                    except json.JSONDecodeError:
+                        continue
 
-                            # 종료 조건 체크
-                            if data.get("stop", False):
-                                break
-
-                        except json.JSONDecodeError as e:
-                            logger.debug(f"JSON decode error: {e}, line: {line}")
-                            continue
-
-        except httpx.TimeoutException as e:
-            logger.error(f"Streaming timeout: {e}")
-            raise RuntimeError("스트리밍 타임아웃") from e
         except Exception as e:
             logger.error(f"Streaming failed: {e}")
             raise
@@ -210,29 +232,21 @@ class LlamaCppServerLLM(BaseLLM):
                     metadata={"backend": "llama.cpp-server", "streamed": True},
                 )
             else:
+                stop_tokens = [
+                    "<|eot_id|>",
+                    "<|im_end|>",
+                    "</s>",
+                    "\n\n\n",
+                    "[END_NOTE]",
+                ]
+
                 payload = {
                     "prompt": prompt,
                     "n_predict": kwargs.get("max_tokens", self.max_tokens),
                     "temperature": kwargs.get("temperature", self.temperature),
                     "top_p": kwargs.get("top_p", self.top_p),
-                    "repeat_penalty": kwargs.get("repeat_penalty", 1.1),
-                    "stop": kwargs.get(
-                        "stop",
-                        [
-                            "</s>",
-                            "\n\n\n",
-                            "User:",
-                            "Assistant:",
-                            ">>>",
-                            "<thinking>",
-                            "</thinking>",
-                            "We need",
-                            "Let's parse",
-                            "Let's craft",
-                            "Thus we",
-                            "<|start|>assistant",
-                        ],
-                    ),
+                    "repeat_penalty": kwargs.get("repeat_penalty", 1.2),
+                    "stop": stop_tokens,
                     "stream": False,
                     "cache_prompt": True,
                 }
@@ -243,9 +257,13 @@ class LlamaCppServerLLM(BaseLLM):
                 response.raise_for_status()
 
                 data = response.json()
+                raw_content = data.get("content", "")
+
+                # CoT 제거
+                cleaned_content = self._clean_cot_output(raw_content)
 
                 return LLMResponse(
-                    text=data.get("content", ""),
+                    text=cleaned_content,
                     model=self.config.model_name,
                     usage=data.get("timings"),
                     metadata={"backend": "llama.cpp-server"},
@@ -258,13 +276,15 @@ class LlamaCppServerLLM(BaseLLM):
     async def astream(self, prompt: str, **kwargs) -> AsyncIterator[str]:
         """비동기 스트리밍"""
         try:
+            stop_tokens = ["<|eot_id|>", "<|im_end|>", "</s>", "\n\n\n", "[END_NOTE]"]
+
             payload = {
                 "prompt": prompt,
                 "n_predict": kwargs.get("max_tokens", self.max_tokens),
                 "temperature": kwargs.get("temperature", self.temperature),
                 "top_p": kwargs.get("top_p", self.top_p),
-                "repeat_penalty": kwargs.get("repeat_penalty", 1.1),
-                "stop": kwargs.get("stop", ["</s>", "\n\n\n", "User:", "Assistant:"]),
+                "repeat_penalty": kwargs.get("repeat_penalty", 1.2),
+                "stop": stop_tokens,
                 "stream": True,
                 "cache_prompt": True,
             }

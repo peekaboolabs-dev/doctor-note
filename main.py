@@ -204,7 +204,19 @@ def main():
             # 테스트 데이터 로드
             with open(test_file, encoding="utf-8") as f:
                 data = json.load(f)
-                test_dialogues = data.get("dialogues", [])
+                all_dialogues = data.get("dialogues", [])
+
+                # 특정 대화 ID가 지정된 경우
+                if args.dialogue_id:
+                    test_dialogues = [
+                        d for d in all_dialogues if d.get("id") == args.dialogue_id
+                    ]
+                    if not test_dialogues:
+                        logger.error(f"대화 ID '{args.dialogue_id}'를 찾을 수 없습니다")
+                        sys.exit(1)
+                    logger.info(f"대화 ID '{args.dialogue_id}'만 테스트합니다")
+                else:
+                    test_dialogues = all_dialogues
 
             # LLM 설정 구성
             llm_type = config.get("llm_type", "ollama")

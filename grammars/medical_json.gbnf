@@ -1,0 +1,15 @@
+root ::= medicalobject
+
+medicalobject ::= "{" ws "\"symptoms\"" ws ":" ws symptomarray ws "," ws "\"duration\"" ws ":" ws string ws "," ws "\"severity\"" ws ":" ws severity ws "," ws "\"vital_signs\"" ws ":" ws vitalsigns ws "," ws "\"examinations\"" ws ":" ws stringarray ws "," ws "\"diagnoses\"" ws ":" ws stringarray ws "," ws "\"medications\"" ws ":" ws stringarray ws "}"
+
+symptomarray ::= "[" ws (string ("," ws string)*)? ws "]"
+stringarray ::= "[" ws (string ("," ws string)*)? ws "]"
+
+vitalsigns ::= "{" ws (vitalsignitem ("," ws vitalsignitem)*)? ws "}"
+vitalsignitem ::= ("\"체온\"" | "\"혈압\"" | "\"맥박\"" | "\"호흡\"") ws ":" ws string
+
+severity ::= ("\"경증\"" | "\"중등증\"" | "\"중증\"" | "\"위중\"")
+
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\""
+
+ws ::= [ \t\n]*

@@ -14,11 +14,13 @@ echo "Port: $PORT"
     --host 127.0.0.1 \
     --port $PORT \
     -ngl -1 \
-    --n-predict -1 \
+    --n-predict 1024 \
     --threads 8 \
     --batch-size 512 \
     --parallel 4 \
     --cont-batching \
     --cache-type-k f16 \
     --cache-type-v f16 \
-    --log-disable
+    --log-disable \
+    --reasoning-format none
+
