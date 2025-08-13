@@ -22,5 +22,5 @@ echo "Port: $PORT"
     --cache-type-k f16 \
     --cache-type-v f16 \
     --log-disable \
-    --jinja --reasoning-format none
+    --reasoning-format none
 

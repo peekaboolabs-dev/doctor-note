@@ -22,9 +22,10 @@ logger = setup_logger(__name__)
 class ResourceMonitor:
     """시스템 리소스 모니터링"""
 
-    def __init__(self, include_ollama=True):
+    def __init__(self, include_ollama=True, include_llama_server=True):
         self.process = psutil.Process()
         self.include_ollama = include_ollama
+        self.include_llama_server = include_llama_server
         self.monitoring = False
         self.metrics = {
             "cpu_percent": [],
@@ -32,6 +33,8 @@ class ResourceMonitor:
             "memory_percent": [],
             "ollama_memory_mb": [],
             "ollama_cpu_percent": [],
+            "llama_server_memory_mb": [],
+            "llama_server_cpu_percent": [],
         }
         self._lock = threading.Lock()
 
@@ -70,6 +73,29 @@ class ResourceMonitor:
                 )
                 result["ollama_cpu_percent_max"] = max(
                     self.metrics["ollama_cpu_percent"]
+                )
+
+            # llama.cpp 서버 메트릭 추가
+            if self.include_llama_server and self.metrics["llama_server_memory_mb"]:
+                result["llama_server_memory_mb_avg"] = (
+                    stats.mean(self.metrics["llama_server_memory_mb"])
+                    if self.metrics["llama_server_memory_mb"]
+                    else 0
+                )
+                result["llama_server_memory_mb_max"] = (
+                    max(self.metrics["llama_server_memory_mb"])
+                    if self.metrics["llama_server_memory_mb"]
+                    else 0
+                )
+                result["llama_server_cpu_percent_avg"] = (
+                    stats.mean(self.metrics["llama_server_cpu_percent"])
+                    if self.metrics["llama_server_cpu_percent"]
+                    else 0
+                )
+                result["llama_server_cpu_percent_max"] = (
+                    max(self.metrics["llama_server_cpu_percent"])
+                    if self.metrics["llama_server_cpu_percent"]
+                    else 0
                 )
 
             return result
@@ -113,6 +139,40 @@ class ResourceMonitor:
 
                         self.metrics["ollama_memory_mb"].append(ollama_memory)
                         self.metrics["ollama_cpu_percent"].append(ollama_cpu)
+
+                    # llama.cpp 서버 프로세스 모니터링
+                    if self.include_llama_server:
+                        llama_memory = 0
+                        llama_cpu = 0
+                        for proc in psutil.process_iter(
+                            ["pid", "name", "cmdline", "memory_info", "cpu_percent"]
+                        ):
+                            try:
+                                # llama-server 프로세스 찾기
+                                proc_info = proc.info
+                                if proc_info and "cmdline" in proc_info:
+                                    cmdline = proc_info["cmdline"]
+                                    if cmdline and any(
+                                        "llama-server" in str(arg) for arg in cmdline
+                                    ):
+                                        # 포트 8080에서 실행 중인 서버만 측정
+                                        if any("8080" in str(arg) for arg in cmdline):
+                                            llama_memory += (
+                                                proc_info["memory_info"].rss
+                                                / 1024
+                                                / 1024
+                                            )
+                                            llama_cpu += proc.cpu_percent(interval=0.1)
+                            except (
+                                psutil.NoSuchProcess,
+                                psutil.AccessDenied,
+                                psutil.ZombieProcess,
+                                AttributeError,
+                            ):
+                                pass
+
+                        self.metrics["llama_server_memory_mb"].append(llama_memory)
+                        self.metrics["llama_server_cpu_percent"].append(llama_cpu)
 
             except Exception as e:
                 logger.error(f"리소스 모니터링 오류: {e}")
@@ -406,13 +466,67 @@ class BenchmarkRunner:
                         },
                     }
 
-                    # 총 메모리 사용량
-                    resources_stats["total_memory_mb"] = {
-                        "mean": resources_stats["python_process"]["memory_mb"]["mean"]
-                        + resources_stats["ollama_process"]["memory_mb"]["mean"],
-                        "max": resources_stats["python_process"]["memory_mb"]["max"]
-                        + resources_stats["ollama_process"]["memory_mb"]["max"],
+                # llama.cpp 서버 리소스 통계
+                llama_mem_avgs = [
+                    r["resources"].get("llama_server_memory_mb_avg", 0)
+                    for r in successful_tests
+                    if "resources" in r
+                ]
+                llama_mem_maxs = [
+                    r["resources"].get("llama_server_memory_mb_max", 0)
+                    for r in successful_tests
+                    if "resources" in r
+                ]
+                llama_cpu_avgs = [
+                    r["resources"].get("llama_server_cpu_percent_avg", 0)
+                    for r in successful_tests
+                    if "resources" in r
+                ]
+
+                if any(v > 0 for v in llama_mem_avgs):
+                    resources_stats["llama_server_process"] = {
+                        "cpu_percent": {
+                            "mean": stats.mean(llama_cpu_avgs) if llama_cpu_avgs else 0,
+                            "max": max(llama_cpu_avgs) if llama_cpu_avgs else 0,
+                        },
+                        "memory_mb": {
+                            "mean": stats.mean(llama_mem_avgs) if llama_mem_avgs else 0,
+                            "max": max(llama_mem_maxs) if llama_mem_maxs else 0,
+                        },
                     }
+
+                # 총 메모리 사용량 계산
+                total_mem_avg = 0
+                total_mem_max = 0
+
+                if "python_process" in resources_stats:
+                    total_mem_avg += resources_stats["python_process"]["memory_mb"][
+                        "mean"
+                    ]
+                    total_mem_max += resources_stats["python_process"]["memory_mb"][
+                        "max"
+                    ]
+
+                if "ollama_process" in resources_stats:
+                    total_mem_avg += resources_stats["ollama_process"]["memory_mb"][
+                        "mean"
+                    ]
+                    total_mem_max += resources_stats["ollama_process"]["memory_mb"][
+                        "max"
+                    ]
+
+                if "llama_server_process" in resources_stats:
+                    total_mem_avg += resources_stats["llama_server_process"][
+                        "memory_mb"
+                    ]["mean"]
+                    total_mem_max += resources_stats["llama_server_process"][
+                        "memory_mb"
+                    ]["max"]
+
+                resources_stats["total_memory_mb"] = {
+                    "mean": total_mem_avg,
+                    "max": total_mem_max,
+                }
 
                 statistics["resources"] = resources_stats
 
