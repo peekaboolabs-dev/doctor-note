@@ -14,7 +14,7 @@ echo "Port: $PORT"
     --host 127.0.0.1 \
     --port $PORT \
     -ngl -1 \
-    --n-predict 1024 \
+    --n-predict 2048 \
     --threads 8 \
     --batch-size 512 \
     --parallel 4 \
