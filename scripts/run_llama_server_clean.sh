@@ -7,7 +7,7 @@ echo "Starting llama.cpp server with clean output settings..."
 echo "Model: $MODEL"
 echo "Port: $PORT"
 
-# 깔끔한 출력을 위한 설정
+# Ollama gpt-oss:20b와 동일한 설정 적용
 ./llama.cpp/build/bin/llama-server \
     -m "$MODEL" \
     -c 8192 \
@@ -22,5 +22,9 @@ echo "Port: $PORT"
     --cache-type-k f16 \
     --cache-type-v f16 \
     --log-disable \
-    --reasoning-format none
+    --reasoning-format none \
+    --temp 1.0 \
+    --top-p 0.95 \
+    --top-k 40 \
+    --repeat-penalty 1.1
 
