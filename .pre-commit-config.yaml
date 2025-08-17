@@ -1,0 +1,8 @@
+repos:
+  # Python (Ruff)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.7  # 최신 버전 확인
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format

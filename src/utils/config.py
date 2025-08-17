@@ -1,81 +1,48 @@
 """
 설정 관리 모듈
 """
+
 import os
-import json
-from pathlib import Path
+
 from dotenv import load_dotenv
 
 # .env 파일 로드
 load_dotenv()
 
 
-def load_config(config_path=None):
+def load_config():
     """
-    설정 파일 로드
-    
-    Args:
-        config_path: 설정 파일 경로 (기본값: configs/config.json)
-    
+    환경변수에서 설정 로드
+
     Returns:
         dict: 설정 딕셔너리
     """
-    if config_path is None:
-        config_path = Path(__file__).parent.parent.parent / "configs" / "config.json"
-    
-    # 기본 설정
-    default_config = {
-        "embedding_model": "jhgan/ko-sroberta-multitask",
-        "chroma_persist_dir": "data/embeddings/chroma_medical_db",
-        "chunk_size": 1000,
-        "chunk_overlap": 100,
-        "collection_name": "korean_medical_qa",
-        "batch_size": 500,
-        "log_level": "INFO",
-        "ollama_model": "solar",
-        "ollama_host": "localhost",
-        "ollama_port": 11434
+    # 환경변수에서 가져오기 (기본값 포함)
+    config = {
+        "embedding_model": os.getenv("EMBEDDING_MODEL", "jhgan/ko-sroberta-multitask"),
+        "chroma_persist_dir": os.getenv(
+            "CHROMA_PERSIST_DIR", "data/embeddings/chroma_medical_db"
+        ),
+        "chunk_size": int(os.getenv("CHUNK_SIZE", "1000")),
+        "chunk_overlap": int(os.getenv("CHUNK_OVERLAP", "100")),
+        "collection_name": os.getenv("COLLECTION_NAME", "korean_medical_qa"),
+        "batch_size": int(os.getenv("BATCH_SIZE", "500")),
+        "log_level": os.getenv("LOG_LEVEL", "INFO"),
+        # LLM 설정
+        "llm_type": os.getenv("LLM_TYPE", "ollama"),  # "ollama", "llamacpp_server"
+        "llm_model": os.getenv("LLM_MODEL", "solar"),  # 모델 이름
+        "llm_temperature": float(os.getenv("LLM_TEMPERATURE", "0.3")),
+        "llm_top_p": float(os.getenv("LLM_TOP_P", "0.9")),
+        "llm_max_tokens": int(os.getenv("LLM_MAX_TOKENS", "2048")),
+        "llm_streaming": os.getenv("LLM_STREAMING", "true").lower()
+        in ["true", "1", "yes"],
+        # Ollama 전용
+        "ollama_model": os.getenv("OLLAMA_MODEL", "solar"),
+        "ollama_host": os.getenv("OLLAMA_HOST", "localhost"),
+        "ollama_port": int(os.getenv("OLLAMA_PORT", "11434")),
+        # llama.cpp 서버 전용
+        "llama_server_host": os.getenv("LLAMA_SERVER_HOST", "localhost"),
+        "llama_server_port": int(os.getenv("LLAMA_SERVER_PORT", "8080")),
     }
-    
-    # 설정 파일이 있으면 로드
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                file_config = json.load(f)
-                default_config.update(file_config)
-        except Exception as e:
-            print(f"설정 파일 로드 실패: {e}")
-    
-    # 환경 변수 오버라이드
-    env_mapping = {
-        "EMBEDDING_MODEL": "embedding_model",
-        "CHROMA_PERSIST_DIR": "chroma_persist_dir",
-        "LOG_LEVEL": "log_level",
-        "OLLAMA_MODEL": "ollama_model",
-        "OLLAMA_HOST": "ollama_host",
-        "OLLAMA_PORT": "ollama_port"
-    }
-    
-    for env_var, config_key in env_mapping.items():
-        if env_var in os.environ:
-            default_config[config_key] = os.environ[env_var]
-    
-    return default_config
 
-
-def save_config(config, config_path=None):
-    """
-    설정 파일 저장
-    
-    Args:
-        config: 설정 딕셔너리
-        config_path: 저장할 경로
-    """
-    if config_path is None:
-        config_path = Path(__file__).parent.parent.parent / "configs" / "config.json"
-    
-    # 디렉토리 생성
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    with open(config_path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
+    return config

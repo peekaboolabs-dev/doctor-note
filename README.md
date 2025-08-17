@@ -3,6 +3,26 @@
 의사-환자 대화를 자동으로 분석하여 구조화된 상담 요약 노트를 생성하는 AI 시스템입니다.
 한국 의료진 국가시험 데이터셋(KorMedMCQA) 기반 RAG를 활용하여 정확하고 전문적인 의료 요약을 제공합니다.
 
+## 🚀 최신 업데이트 (2025.08.13)
+
+### 🎯 llama.cpp 서버 지원 추가
+- **llama.cpp 서버 모드 전용 지원**: Ollama와 병행 사용 가능
+- **환경변수 기반 설정**: .env.llamacpp, .env.ollama 분리 제공
+- **코드 단순화**: CoT reasoning 출력 이슈 해결
+- **불필요한 모듈 제거**: response_cleaner, llamacpp_llm 삭제
+
+### ⚠️ 알려진 이슈
+- **CoT reasoning 출력 문제**: llama.cpp 서버 사용 시 Chain-of-Thought 추론 과정이 출력에 포함되는 현상
+- **JSON 파싱 오류**: 일부 모델에서 JSON 형식이 깨지거나 불완전하게 생성되는 문제
+
+## 🚀 최신 업데이트 (2025.08.12)
+
+### 🎯 llama.cpp 통합 및 최적화
+- **llama.cpp 로컬 모드**: 메모리 효율적인 로컬 실행
+- **크로스 플랫폼**: Mac Metal, CUDA, CPU 모두 지원
+- **LLM 추상화 레이어**: Ollama와 llama.cpp 통합 인터페이스
+- **GGUF 모델 지원**: 최적화된 양자화 모델 사용
+
 ## 🚀 최신 업데이트 (2025.08.11)
 
 ### 🔧 프로젝트 구조 개선
@@ -72,7 +92,8 @@
 
 | 구분 | 기술 | 설명 |
 |------|------|------|
-| **LLM** | GPT-OSS 20B / Solar | Ollama 로컬 실행, 한국어 최적화 |
+| **LLM** | GPT-OSS 20B / Solar | Ollama/llama.cpp 서버 실행, 한국어 최적화 |
+| **LLM 서버** | Ollama / llama.cpp server | 선택적 백엔드 사용 가능 |
 | **Vector DB** | ChromaDB | 의학 문서 벡터 저장 및 검색 |
 | **Embedding** | jhgan/ko-sroberta-multitask | 한국어 특화 임베딩 모델 |
 | **검색 알고리즘** | BM25 + Dense Retrieval | 하이브리드 검색 전략 |
@@ -148,12 +169,67 @@ python main.py --mode setup
 
 ## 사용 방법
 
-### 1. 대화 요약 (기본)
+### 1. 대화 요약 (기본 - Ollama)
 ```bash
 python main.py --mode summarize --dialogue_file data/sample_dialogues.json
 ```
 
-### 2. 하이브리드 RAG 테스트
+### 2. llama.cpp 서버 모드 사용
+```bash
+# 1. llama.cpp 설정 (최초 1회)
+./setup_llamacpp.sh
+
+# 2. GGUF 모델 다운로드
+wget https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/main/qwen2.5-7b-instruct-q4_k_m.gguf -P models/
+
+# 3. 서버 실행
+./run_llama_server.sh models/qwen2.5-7b-instruct-q4_k_m.gguf 8080
+```
+
+```python
+from src.models.llm import LLMConfig, LLMFactory
+from src.models.summarizer.dialogue_summarizer import DialogueSummarizer
+
+# llama.cpp 서버 설정
+config = LLMConfig(
+    model_type="llamacpp_server",
+    model_name="qwen2.5-7b",
+    llama_server_host="localhost",
+    llama_server_port=8080,
+    temperature=0.3,
+    max_tokens=2048,
+)
+
+# 대화 요약 시스템 생성
+summarizer = DialogueSummarizer(
+    llm_config=config,
+    use_hybrid=True,
+)
+
+# 대화 요약 실행
+result = summarizer.summarize_dialogue(dialogue_text)
+```
+
+**추천 GGUF 모델:**
+- `Qwen2.5-7B-Instruct`: 한국어 성능 우수 (Q4_K_M: 4.5GB)
+- `Llama-3.2-3B-Instruct`: 빠른 추론 속도 (Q4_K_M: 2GB)
+- `Solar-10.7B`: 한국어 특화 (Q4_K_M: 6GB)
+
+### 3. 환경변수로 모델 설정
+```bash
+# .env 파일 예시
+LLM_TYPE=llamacpp_server  # ollama | llamacpp_server
+LLM_MODEL=qwen2.5-7b
+LLAMA_SERVER_HOST=localhost
+LLAMA_SERVER_PORT=8080
+LLM_TEMPERATURE=0.3
+LLM_MAX_TOKENS=2048
+
+# 실행
+python main.py --mode summarize --dialogue_file data/sample_dialogues.json
+```
+
+### 4. 하이브리드 RAG 테스트
 ```python
 from src.models.rag.hybrid_rag_system import HybridMedicalRAG
 
@@ -169,13 +245,16 @@ results = hybrid_rag.hybrid_search(
 )
 ```
 
-### 3. 벤치마크 실행
+### 5. 테스트 및 벤치마크
 ```bash
+# LLM 통합 테스트
+python tests/test_llm_integration.py
+
+# 전체 모델 벤치마크
+python tests/run_all_benchmarks.py
+
 # 단일 모델 벤치마크
 python main.py --mode benchmark --test_file data/sample_dialogues.json
-
-# 전체 모델 비교
-python tests/run_all_benchmarks.py
 ```
 
 ## 실행 예시
@@ -272,6 +351,12 @@ doctor-note/
 │   │   ├── benchmark/                    # 벤치마크 모듈
 │   │   │   ├── __init__.py
 │   │   │   └── benchmark_runner.py       # 성능 벤치마크
+│   │   ├── llm/                          # LLM 추상화 레이어
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py                   # 베이스 클래스
+│   │   │   ├── factory.py                # LLM 팩토리
+│   │   │   ├── llamacpp_server.py        # llama.cpp 서버 클라이언트
+│   │   │   └── ollama_llm.py             # Ollama 래퍼
 │   │   ├── rag/                          # RAG 시스템 모듈
 │   │   │   ├── __init__.py
 │   │   │   ├── medical_rag_system.py     # 기본 RAG 시스템
@@ -292,6 +377,8 @@ doctor-note/
 ├── tests/                        # 테스트 코드
 │   ├── __init__.py
 │   ├── test_hybrid_rag.py      # 하이브리드 RAG 테스트
+│   ├── test_llm_integration.py # LLM 통합 테스트
+│   ├── test_trillion.py        # Trillion 모델 테스트
 │   └── run_all_benchmarks.py   # 전체 모델 벤치마크
 ├── main.py                       # 메인 엔트리포인트
 ├── requirements.txt             # 의존성 패키지

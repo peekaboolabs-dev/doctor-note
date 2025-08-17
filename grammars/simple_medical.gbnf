@@ -1,0 +1,9 @@
+root ::= object
+object ::= "{" ws members ws "}"
+members ::= member ("," ws member)*
+member ::= string ":" ws value
+value ::= string | array | object | "null"
+array ::= "[" ws elements ws "]"
+elements ::= value ("," ws value)*
+string ::= "\"" ([^"\\] | "\\" .)* "\""
+ws ::= [ \t\n\r]*
