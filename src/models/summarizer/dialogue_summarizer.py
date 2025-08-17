@@ -19,31 +19,100 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class MedicalEntity:
-    """의학적 개체 정보"""
+class MentalStatusExam:
+    """정신상태검사 (MSE) 정보"""
 
-    symptoms: list[str] = field(default_factory=list)
-    diagnoses: list[str] = field(default_factory=list)
-    medications: list[str] = field(default_factory=list)
-    examinations: list[str] = field(default_factory=list)
-    vital_signs: dict[str, str] = field(default_factory=dict)
-    duration: str | None = None
-    severity: str | None = None
+    appearance: str | None = None  # 외모 및 태도
+    behavior: str | None = None  # 행동 특징
+    speech: str | None = None  # 말의 속도와 양
+    mood_affect: str | None = None  # 기분/정동
+    thought_process: str | None = None  # 사고 과정
+    thought_content: str | None = None  # 사고 내용
+    perception: str | None = None  # 지각 이상
+    cognition: str | None = None  # 인지 기능
+    insight: str | None = None  # 병식
+
+
+@dataclass
+class MedicalEntity:
+    """정신과 의학적 개체 정보"""
+
+    chief_complaint: str | None = None  # 주호소
+    psychiatric_symptoms: list[str] = field(default_factory=list)  # 정신과 증상
+    mood: str | None = None  # 기분 상태
+    sleep_pattern: str | None = None  # 수면 패턴
+    appetite: str | None = None  # 식욕 변화
+    duration: str | None = None  # 증상 지속 기간
+    severity: str | None = None  # 심각도
+    onset: str | None = None  # 발병 시기
+    triggers: list[str] = field(default_factory=list)  # 유발 요인
+    mental_status_exam: MentalStatusExam = field(
+        default_factory=MentalStatusExam
+    )  # MSE
+    suicidal_ideation: str | None = None  # 자살 사고
+    homicidal_ideation: str | None = None  # 타해 사고
+    substance_use: list[str] = field(default_factory=list)  # 물질 사용력
+    past_psychiatric_history: str | None = None  # 과거 정신과 병력
+    medications: list[str] = field(default_factory=list)  # 현재 복용 약물
+    diagnoses: list[str] = field(default_factory=list)  # 진단명
+    family_history: str | None = None  # 가족력
+    vital_signs: dict[str, str] = field(default_factory=dict)  # 활력징후
+    physical_exam: str | None = None  # 신체 검사
+
+
+@dataclass
+class SubjectiveSection:
+    """SOAP - Subjective 섹션"""
+
+    chief_complaint: str  # 주호소
+    history_present_illness: str  # 현병력
+    psychiatric_review: str  # 정신과적 증상 검토
+    patient_perception: str  # 환자의 질병 인식
+
+
+@dataclass
+class ObjectiveSection:
+    """SOAP - Objective 섹션"""
+
+    vital_signs: dict[str, str] = field(default_factory=dict)  # 활력징후
+    mental_status_exam: MentalStatusExam = field(
+        default_factory=MentalStatusExam
+    )  # MSE
+    physical_exam: str | None = None  # 신체 검사
+
+
+@dataclass
+class AssessmentSection:
+    """SOAP - Assessment 섹션"""
+
+    diagnosis: list[str] = field(default_factory=list)  # 진단 (DSM 코드 포함)
+    progress: str | None = None  # 경과 (이전 상태와 비교)
+    risk_factors: list[str] = field(default_factory=list)  # 위험 요인
+
+
+@dataclass
+class PlanSection:
+    """SOAP - Plan 섹션"""
+
+    medications: list[str] = field(default_factory=list)  # 약물치료
+    psychotherapy: str | None = None  # 정신치료
+    education: list[str] = field(default_factory=list)  # 환자 교육
+    follow_up: str | None = None  # 추적관찰
+    referrals: list[str] = field(default_factory=list)  # 의뢰
+    safety_planning: str | None = None  # 안전 계획
 
 
 @dataclass
 class ConsultationSummary:
-    """상담 요약 정보"""
+    """정신과 SOAP 상담 요약 정보"""
 
-    chief_complaint: str
-    present_illness: str
-    medical_entities: MedicalEntity
-    assessment: str
-    plan: list[str]
-    follow_up: str | None = None
-    warnings: list[str] = field(default_factory=list)
-    confidence_score: float = 0.0
-    references: list[dict[str, str]] = field(default_factory=list)
+    subjective: SubjectiveSection  # Subjective 섹션
+    objective: ObjectiveSection  # Objective 섹션
+    assessment: AssessmentSection  # Assessment 섹션
+    plan: PlanSection  # Plan 섹션
+    medical_entities: MedicalEntity  # 추출된 의학 정보
+    confidence_score: float = 0.0  # 신뢰도 점수
+    references: list[dict[str, str]] = field(default_factory=list)  # 참고자료
 
 
 class DialogueSummarizer:
@@ -126,7 +195,7 @@ class DialogueSummarizer:
         # 프롬프트 템플릿
         self.entity_extraction_prompt = PromptTemplate(
             input_variables=["dialogue"],
-            template="""다음 의사-환자 대화에서 의학적 정보를 추출하세요.
+            template="""다음 정신과 의사-환자 대화에서 의학적 정보를 추출하세요.
 
 대화:
 {dialogue}
@@ -138,13 +207,33 @@ class DialogueSummarizer:
 
 출력 형식:
 {{
-    "symptoms": ["증상1", "증상2"],
+    "chief_complaint": "주호소",
+    "psychiatric_symptoms": ["우울", "불안", "불면", "자살사고 등"],
+    "mood": "기분 상태",
+    "sleep_pattern": "수면 패턴",
+    "appetite": "식욕 변화",
     "duration": "증상 지속 기간",
     "severity": "경증/중등증/중증",
-    "vital_signs": {{"체온": "값", "혈압": "값"}},
-    "examinations": ["검사1", "검사2"],
-    "diagnoses": ["진단명1", "진단명2"],
-    "medications": ["약물명1", "약물명2"]
+    "onset": "발병 시기",
+    "triggers": ["유발 요인들"],
+    "mental_status_exam": {{
+        "appearance": "외모 및 태도",
+        "behavior": "행동 특징",
+        "speech": "말의 속도와 양",
+        "mood_affect": "기분/정동",
+        "thought_process": "사고 과정",
+        "thought_content": "사고 내용",
+        "perception": "지각 이상",
+        "cognition": "인지 기능",
+        "insight": "병식"
+    }},
+    "suicidal_ideation": "자살 사고 유무",
+    "homicidal_ideation": "타해 사고 유무",
+    "substance_use": ["물질 사용력"],
+    "past_psychiatric_history": "과거 정신과 병력",
+    "medications": ["현재 복용 약물"],
+    "diagnoses": ["진단명 또는 추정 진단"],
+    "family_history": "가족력"
 }}
 
 JSON만 출력:""",
@@ -152,7 +241,9 @@ JSON만 출력:""",
 
         self.summary_generation_prompt = PromptTemplate(
             input_variables=["dialogue", "entities", "medical_context"],
-            template="""당신은 의료 전문가입니다. 다음 의사-환자 대화를 구조화된 상담 노트로 요약하세요.
+            template="""당신은 정신건강의학과 전문의입니다. 다음 의사-환자 대화를 정신과 SOAP 노트 형식으로 작성하세요.
+
+중요: 반드시 한국어로 작성하세요. 영어를 사용하지 마세요.
 
 대화:
 {dialogue}
@@ -163,26 +254,41 @@ JSON만 출력:""",
 관련 의학 지식:
 {medical_context}
 
-아래 형식에 따라 상담 노트를 작성하세요. 각 섹션을 빠짐없이 작성하세요:
+아래 정신과 SOAP 형식에 따라 한국어로 상담 노트를 작성하세요. 각 섹션을 빠짐없이 작성하세요:
 
-## 상담 노트
+## 정신과 상담 노트 (SOAP)
 
-### 주호소 (Chief Complaint)
-환자가 방문한 주된 이유를 한 문장으로 작성
+### Subjective (주관적 정보)
+**주호소 (Chief Complaint):** [환자가 자신의 언어로 표현한 주된 문제]
+**현병력 (History of Present Illness):** [증상의 발생 시기, 지속 기간, 심각도, 유발/완화 요인]
+**정신과적 증상 검토 (Review of Systems - Psychiatric):** [환자가 보고한 기분, 불안, 수면, 식욕, 자살사고 등]
+**환자의 질병 인식 (Patient's Perception):** [환자가 자신의 상태를 어떻게 이해하고 있는지]
 
-### 현병력 (Present Illness)
-증상의 발생 시기, 양상, 악화/완화 요인 등을 시간 순서대로 기술
+### Objective (객관적 정보)
+**활력징후 (Vital Signs):** [혈압, 맥박, 체온 등 (해당 시)]
+**정신상태검사 (Mental Status Examination):**
+- 외모 및 태도: [복장, 위생, 협조도]
+- 정신운동활동: [안절부절, 지체, 틱 등]
+- 기분 및 정동: [주관적 기분 / 객관적 정동]
+- 사고과정: [사고의 흐름, 연상의 이완 등]
+- 사고내용: [망상, 강박사고, 자살/타해사고]
+- 지각이상: [환각, 착각 등]
+- 인지기능: [지남력, 주의력, 기억력]
+- 병식: [질병에 대한 인식 수준]
+**신체 검사 (Physical Examination):** [관련 신체 소견 (해당 시)]
 
-### 평가 (Assessment)
-수집된 정보를 바탕으로 한 의학적 평가와 감별 진단
+### Assessment (평가)
+**진단 (Diagnosis):** [주진단 및 감별진단, DSM-5 코드 포함]
+**경과 (Progress):** [이전 방문과 비교한 현재 상태]
+**위험 요인 (Risk Factors):** [자해, 타해, 치료 불순응 위험성 평가]
 
-### 계획 (Plan)
-1. 처방 및 치료 계획
-2. 필요한 추가 검사
-3. 생활 습관 권고사항
-
-### 추적 관찰 (Follow-up)
-재방문 시기 및 주의사항
+### Plan (계획)
+**약물치료 (Medications):** [처방 변경, 추가, 유지 사항]
+**정신치료 (Psychotherapy):** [치료 유형, 초점, 빈도]
+**환자 교육 (Education):** [질병, 약물, 대처방법에 대한 교육]
+**추적관찰 (Follow-Up):** [다음 방문 시기 및 목표]
+**의뢰 (Referrals):** [타과 또는 타 전문가 의뢰 (필요시)]
+**안전 계획 (Safety Planning):** [위험 평가에 따른 안전 조치]
 
 ---
 노트 작성 완료""",
@@ -279,18 +385,44 @@ JSON만 출력:""",
 
             entities_dict = json.loads(json_content)
 
-            # MedicalEntity 객체로 변환
-            entities = MedicalEntity(
-                symptoms=entities_dict.get("symptoms", []),
-                duration=entities_dict.get("duration"),
-                severity=entities_dict.get("severity"),
-                vital_signs=entities_dict.get("vital_signs", {}),
-                examinations=entities_dict.get("examinations", []),
-                diagnoses=entities_dict.get("diagnoses", []),
-                medications=entities_dict.get("medications", []),
+            # MSE 정보 처리
+            mse_dict = entities_dict.get("mental_status_exam", {})
+            mse = MentalStatusExam(
+                appearance=mse_dict.get("appearance"),
+                behavior=mse_dict.get("behavior"),
+                speech=mse_dict.get("speech"),
+                mood_affect=mse_dict.get("mood_affect"),
+                thought_process=mse_dict.get("thought_process"),
+                thought_content=mse_dict.get("thought_content"),
+                perception=mse_dict.get("perception"),
+                cognition=mse_dict.get("cognition"),
+                insight=mse_dict.get("insight"),
             )
 
-            logger.info(f"추출된 의학 개체: {entities}")
+            # MedicalEntity 객체로 변환
+            entities = MedicalEntity(
+                chief_complaint=entities_dict.get("chief_complaint"),
+                psychiatric_symptoms=entities_dict.get("psychiatric_symptoms", []),
+                mood=entities_dict.get("mood"),
+                sleep_pattern=entities_dict.get("sleep_pattern"),
+                appetite=entities_dict.get("appetite"),
+                duration=entities_dict.get("duration"),
+                severity=entities_dict.get("severity"),
+                onset=entities_dict.get("onset"),
+                triggers=entities_dict.get("triggers", []),
+                mental_status_exam=mse,
+                suicidal_ideation=entities_dict.get("suicidal_ideation"),
+                homicidal_ideation=entities_dict.get("homicidal_ideation"),
+                substance_use=entities_dict.get("substance_use", []),
+                past_psychiatric_history=entities_dict.get("past_psychiatric_history"),
+                medications=entities_dict.get("medications", []),
+                diagnoses=entities_dict.get("diagnoses", []),
+                family_history=entities_dict.get("family_history"),
+                vital_signs=entities_dict.get("vital_signs", {}),
+                physical_exam=entities_dict.get("physical_exam"),
+            )
+
+            logger.info(f"추출된 정신과 의학 개체: {entities}")
             return entities
 
         except Exception as e:
@@ -299,10 +431,10 @@ JSON만 출력:""",
 
     def get_medical_context(self, entities: MedicalEntity) -> str:
         """
-        추출된 개체를 기반으로 관련 의학 정보 검색
+        추출된 개체를 기반으로 관련 정신과 의학 정보 검색
 
         Args:
-            entities: 의학적 개체 정보
+            entities: 정신과 의학적 개체 정보
 
         Returns:
             관련 의학 컨텍스트
@@ -310,8 +442,13 @@ JSON만 출력:""",
         # 검색 쿼리 구성
         queries = []
 
-        if entities.symptoms:
-            queries.append(" ".join(entities.symptoms[:3]))  # 주요 증상
+        if entities.chief_complaint:
+            queries.append(entities.chief_complaint)
+
+        if entities.psychiatric_symptoms:
+            queries.append(
+                " ".join(entities.psychiatric_symptoms[:3])
+            )  # 주요 정신과 증상
 
         if entities.diagnoses:
             queries.append(" ".join(entities.diagnoses))
@@ -356,10 +493,47 @@ JSON만 출력:""",
             상담 요약
         """
         try:
+            # entities를 JSON 직렬화 가능한 형태로 변환
+            entities_dict = {
+                "chief_complaint": entities.chief_complaint,
+                "psychiatric_symptoms": entities.psychiatric_symptoms,
+                "mood": entities.mood,
+                "sleep_pattern": entities.sleep_pattern,
+                "appetite": entities.appetite,
+                "duration": entities.duration,
+                "severity": entities.severity,
+                "onset": entities.onset,
+                "triggers": entities.triggers,
+                "suicidal_ideation": entities.suicidal_ideation,
+                "homicidal_ideation": entities.homicidal_ideation,
+                "substance_use": entities.substance_use,
+                "past_psychiatric_history": entities.past_psychiatric_history,
+                "medications": entities.medications,
+                "diagnoses": entities.diagnoses,
+                "family_history": entities.family_history,
+                "vital_signs": entities.vital_signs,
+                "physical_exam": entities.physical_exam,
+            }
+
+            # MSE 정보 추가
+            if entities.mental_status_exam:
+                mse = entities.mental_status_exam
+                entities_dict["mental_status_exam"] = {
+                    "appearance": mse.appearance,
+                    "behavior": mse.behavior,
+                    "speech": mse.speech,
+                    "mood_affect": mse.mood_affect,
+                    "thought_process": mse.thought_process,
+                    "thought_content": mse.thought_content,
+                    "perception": mse.perception,
+                    "cognition": mse.cognition,
+                    "insight": mse.insight,
+                }
+
             # 프롬프트 생성
             prompt = self.summary_generation_prompt.format(
                 dialogue=dialogue,
-                entities=json.dumps(entities.__dict__, ensure_ascii=False),
+                entities=json.dumps(entities_dict, ensure_ascii=False),
                 medical_context=medical_context,
             )
 
@@ -386,30 +560,54 @@ JSON만 출력:""",
 
         except Exception as e:
             logger.error(f"요약 생성 실패: {e}")
-            # 기본 요약 반환
+            # 기본 SOAP 요약 반환
             return ConsultationSummary(
-                chief_complaint="요약 생성 실패",
-                present_illness="대화 내용을 요약할 수 없습니다.",
+                subjective=SubjectiveSection(
+                    chief_complaint="요약 생성 실패",
+                    history_present_illness="대화 내용을 요약할 수 없습니다.",
+                    psychiatric_review="정신과 증상 검토 불가",
+                    patient_perception="환자 인식 파악 불가",
+                ),
+                objective=ObjectiveSection(),
+                assessment=AssessmentSection(),
+                plan=PlanSection(),
                 medical_entities=entities,
-                assessment="평가 불가",
-                plan=["재평가 필요"],
                 confidence_score=0.0,
             )
 
     def _parse_summary_text(
         self, summary_text: str, entities: MedicalEntity
     ) -> ConsultationSummary:
-        """상담 요약 텍스트 파싱"""
-        sections = {
+        """정신과 SOAP 상담 요약 텍스트 파싱"""
+        # 각 섹션 초기화
+        subjective_data = {
             "chief_complaint": "",
-            "present_illness": "",
-            "assessment": "",
-            "plan": [],
+            "history_present_illness": "",
+            "psychiatric_review": "",
+            "patient_perception": "",
+        }
+        objective_data = {
+            "vital_signs": {},
+            "mental_status_exam": {},
+            "physical_exam": "",
+        }
+        assessment_data = {
+            "diagnosis": [],
+            "progress": "",
+            "risk_factors": [],
+        }
+        plan_data = {
+            "medications": [],
+            "psychotherapy": "",
+            "education": [],
             "follow_up": "",
+            "referrals": [],
+            "safety_planning": "",
         }
 
-        # 섹션별 파싱 - 더 유연한 매칭
+        # 섹션별 파싱 - SOAP 형식에 맞게
         current_section = None
+        current_subsection = None
         lines = summary_text.split("\n")
 
         for line in lines:
@@ -417,139 +615,325 @@ JSON만 출력:""",
             if not line:
                 continue
 
-            # 섹션 헤더 확인 (더 유연한 매칭)
+            # SOAP 주요 섹션 확인
             line_lower = line.lower()
-            if (
-                "주호소" in line
-                or "chief complaint" in line_lower
-                or line.startswith("### 주호소")
-            ):
-                current_section = "chief_complaint"
-                # 같은 줄에 내용이 있으면 추출
+
+            # Subjective 섹션
+            if "subjective" in line_lower or "주관적" in line:
+                current_section = "subjective"
+                current_subsection = None
+            elif "주호소" in line or "chief complaint" in line_lower:
+                current_section = "subjective"
+                current_subsection = "chief_complaint"
                 if ":" in line:
-                    content = line.split(":", 1)[1].strip()
+                    content = line.split(":", 1)[1].strip().strip("[]")
                     if content:
-                        sections["chief_complaint"] = content
-            elif (
-                "현병력" in line
-                or "present illness" in line_lower
-                or line.startswith("### 현병력")
-            ):
-                current_section = "present_illness"
+                        subjective_data["chief_complaint"] = content
+            elif "현병력" in line or "history of present illness" in line_lower:
+                current_section = "subjective"
+                current_subsection = "history_present_illness"
                 if ":" in line:
-                    content = line.split(":", 1)[1].strip()
+                    content = line.split(":", 1)[1].strip().strip("[]")
                     if content:
-                        sections["present_illness"] = content
-            elif (
-                "평가" in line
-                or "assessment" in line_lower
-                or line.startswith("### 평가")
-            ):
+                        subjective_data["history_present_illness"] = content
+            elif "정신과적 증상" in line or "psychiatric" in line_lower:
+                current_section = "subjective"
+                current_subsection = "psychiatric_review"
+                if ":" in line:
+                    content = line.split(":", 1)[1].strip().strip("[]")
+                    if content:
+                        subjective_data["psychiatric_review"] = content
+            elif "환자의 질병 인식" in line or "patient's perception" in line_lower:
+                current_section = "subjective"
+                current_subsection = "patient_perception"
+                if ":" in line:
+                    content = line.split(":", 1)[1].strip().strip("[]")
+                    if content:
+                        subjective_data["patient_perception"] = content
+
+            # Objective 섹션
+            elif "objective" in line_lower or "객관적" in line:
+                current_section = "objective"
+                current_subsection = None
+            elif "활력징후" in line or "vital signs" in line_lower:
+                current_section = "objective"
+                current_subsection = "vital_signs"
+            elif "정신상태검사" in line or "mental status examination" in line_lower:
+                current_section = "objective"
+                current_subsection = "mental_status_exam"
+            elif "신체 검사" in line or "physical examination" in line_lower:
+                current_section = "objective"
+                current_subsection = "physical_exam"
+                if ":" in line:
+                    content = line.split(":", 1)[1].strip().strip("[]")
+                    if content:
+                        objective_data["physical_exam"] = content
+
+            # Assessment 섹션
+            elif "assessment" in line_lower or "평가" in line:
                 current_section = "assessment"
+                current_subsection = None
+            elif "진단" in line or "diagnosis" in line_lower:
+                current_section = "assessment"
+                current_subsection = "diagnosis"
+            elif "경과" in line or "progress" in line_lower:
+                current_section = "assessment"
+                current_subsection = "progress"
                 if ":" in line:
-                    content = line.split(":", 1)[1].strip()
+                    content = line.split(":", 1)[1].strip().strip("[]")
                     if content:
-                        sections["assessment"] = content
-            elif "계획" in line or "plan" in line_lower or line.startswith("### 계획"):
+                        assessment_data["progress"] = content
+            elif "위험 요인" in line or "risk factors" in line_lower:
+                current_section = "assessment"
+                current_subsection = "risk_factors"
+
+            # Plan 섹션
+            elif "plan" in line_lower or "계획" in line:
                 current_section = "plan"
-            elif (
-                "추적" in line or "follow" in line_lower or line.startswith("### 추적")
-            ):
-                current_section = "follow_up"
+                current_subsection = None
+            elif "약물치료" in line or "medications" in line_lower:
+                current_section = "plan"
+                current_subsection = "medications"
+            elif "정신치료" in line or "psychotherapy" in line_lower:
+                current_section = "plan"
+                current_subsection = "psychotherapy"
                 if ":" in line:
-                    content = line.split(":", 1)[1].strip()
+                    content = line.split(":", 1)[1].strip().strip("[]")
                     if content:
-                        sections["follow_up"] = content
+                        plan_data["psychotherapy"] = content
+            elif "환자 교육" in line or "education" in line_lower:
+                current_section = "plan"
+                current_subsection = "education"
+            elif "추적관찰" in line or "follow-up" in line_lower:
+                current_section = "plan"
+                current_subsection = "follow_up"
+                if ":" in line:
+                    content = line.split(":", 1)[1].strip().strip("[]")
+                    if content:
+                        plan_data["follow_up"] = content
+            elif "의뢰" in line or "referrals" in line_lower:
+                current_section = "plan"
+                current_subsection = "referrals"
+            elif "안전 계획" in line or "safety planning" in line_lower:
+                current_section = "plan"
+                current_subsection = "safety_planning"
+                if ":" in line:
+                    content = line.split(":", 1)[1].strip().strip("[]")
+                    if content:
+                        plan_data["safety_planning"] = content
+
+            # 내용 추가
             else:
-                # 내용 추가
-                if current_section == "plan":
-                    # 번호나 불릿 포인트로 시작하는 라인
-                    if line and (line[0].isdigit() or line.startswith(("-", "•", "*"))):
-                        # 번호, 점, 대시 등 제거
-                        clean_line = line.lstrip("0123456789.-•* ")
-                        if clean_line:
-                            sections["plan"].append(clean_line)
-                    elif line and current_section == "plan" and sections["plan"]:
-                        # 이전 plan 항목에 추가
-                        sections["plan"][-1] += " " + line
-                elif current_section and current_section != "plan":
-                    # 다른 섹션들은 텍스트 누적
-                    if sections[current_section]:
-                        sections[current_section] += " " + line
+                if current_section == "subjective" and current_subsection:
+                    if subjective_data[current_subsection]:
+                        subjective_data[current_subsection] += " " + line
                     else:
-                        sections[current_section] = line
+                        subjective_data[current_subsection] = line
+                elif current_section == "objective":
+                    if current_subsection == "mental_status_exam" and "-" in line:
+                        # MSE 항목 파싱
+                        parts = line.split(":", 1)
+                        if len(parts) == 2:
+                            key = parts[0].strip("- ")
+                            value = parts[1].strip()
+                            objective_data["mental_status_exam"][key] = value
+                elif current_section == "assessment":
+                    if (
+                        current_subsection == "diagnosis"
+                        or current_subsection == "risk_factors"
+                    ):
+                        # 리스트 항목 추가
+                        if line.startswith(("-", "•", "*")) or line[0].isdigit():
+                            clean_line = line.lstrip("0123456789.-•* ")
+                            if clean_line:
+                                assessment_data[current_subsection].append(clean_line)
+                elif current_section == "plan":
+                    if current_subsection in ["medications", "education", "referrals"]:
+                        # 리스트 항목 추가
+                        if line.startswith(("-", "•", "*")) or line[0].isdigit():
+                            clean_line = line.lstrip("0123456789.-•* ")
+                            if clean_line:
+                                plan_data[current_subsection].append(clean_line)
 
-        # 각 섹션 정리
-        for key in sections:
-            if key != "plan" and isinstance(sections[key], str):
-                sections[key] = sections[key].strip()
-
-        # 주호소가 비어있으면 증상에서 생성
-        if not sections["chief_complaint"] and entities.symptoms:
-            symptoms_str = ", ".join(entities.symptoms[:3])
-            if entities.duration:
-                sections["chief_complaint"] = f"{symptoms_str} ({entities.duration})"
-            else:
-                sections["chief_complaint"] = symptoms_str
-
-        # 현병력이 비어있으면 기본 정보 구성
-        if not sections["present_illness"] and entities.symptoms:
-            illness_parts = []
-            if entities.duration:
-                illness_parts.append(f"{entities.duration} 전부터")
-            if entities.symptoms:
-                illness_parts.append(f"{', '.join(entities.symptoms)} 증상 발생")
-            if entities.severity:
-                illness_parts.append(f"증상 정도: {entities.severity}")
-            sections["present_illness"] = (
-                " ".join(illness_parts) if illness_parts else "증상 정보 없음"
+        # 기본값 설정 - 빈 필드 채우기
+        if not subjective_data["chief_complaint"] and entities.chief_complaint:
+            subjective_data["chief_complaint"] = entities.chief_complaint
+        elif not subjective_data["chief_complaint"] and entities.psychiatric_symptoms:
+            subjective_data["chief_complaint"] = (
+                f"{', '.join(entities.psychiatric_symptoms[:2])} 증상"
             )
 
-        # 평가가 비어있으면 진단 정보 사용
-        if not sections["assessment"] and entities.diagnoses:
-            sections["assessment"] = f"의심 진단: {', '.join(entities.diagnoses)}"
+        if not subjective_data["history_present_illness"]:
+            hpi_parts = []
+            if entities.onset:
+                hpi_parts.append(f"발병: {entities.onset}")
+            if entities.duration:
+                hpi_parts.append(f"기간: {entities.duration}")
+            if entities.severity:
+                hpi_parts.append(f"심각도: {entities.severity}")
+            subjective_data["history_present_illness"] = (
+                " / ".join(hpi_parts) if hpi_parts else "정보 없음"
+            )
 
-        # 계획이 비어있으면 기본 계획 생성
-        if not sections["plan"]:
-            if entities.medications:
-                sections["plan"].append(f"약물 치료: {', '.join(entities.medications)}")
-            if entities.examinations:
-                sections["plan"].append(f"검사: {', '.join(entities.examinations)}")
-            if not sections["plan"]:
-                sections["plan"] = ["추가 평가 필요"]
+        if not subjective_data["psychiatric_review"] and entities.psychiatric_symptoms:
+            subjective_data["psychiatric_review"] = ", ".join(
+                entities.psychiatric_symptoms
+            )
 
+        if not subjective_data["patient_perception"]:
+            subjective_data["patient_perception"] = "환자의 질병 인식 평가 필요"
+
+        # MSE 정보 통합
+        if not objective_data["mental_status_exam"] and entities.mental_status_exam:
+            mse = entities.mental_status_exam
+            objective_data["mental_status_exam"] = MentalStatusExam(
+                appearance=mse.appearance,
+                behavior=mse.behavior,
+                speech=mse.speech,
+                mood_affect=mse.mood_affect,
+                thought_process=mse.thought_process,
+                thought_content=mse.thought_content,
+                perception=mse.perception,
+                cognition=mse.cognition,
+                insight=mse.insight,
+            )
+        else:
+            # 딕셔너리를 MentalStatusExam 객체로 변환
+            mse_dict = objective_data["mental_status_exam"]
+            objective_data["mental_status_exam"] = MentalStatusExam(
+                appearance=mse_dict.get("외모 및 태도"),
+                behavior=mse_dict.get("정신운동활동"),
+                speech=mse_dict.get("말의 속도와 양"),
+                mood_affect=mse_dict.get("기분 및 정동"),
+                thought_process=mse_dict.get("사고과정"),
+                thought_content=mse_dict.get("사고내용"),
+                perception=mse_dict.get("지각이상"),
+                cognition=mse_dict.get("인지기능"),
+                insight=mse_dict.get("병식"),
+            )
+
+        # Assessment 기본값
+        if not assessment_data["diagnosis"] and entities.diagnoses:
+            assessment_data["diagnosis"] = entities.diagnoses
+
+        if entities.suicidal_ideation or entities.homicidal_ideation:
+            if entities.suicidal_ideation and "자살" not in str(
+                assessment_data["risk_factors"]
+            ):
+                assessment_data["risk_factors"].append(
+                    f"자살 사고: {entities.suicidal_ideation}"
+                )
+            if entities.homicidal_ideation and "타해" not in str(
+                assessment_data["risk_factors"]
+            ):
+                assessment_data["risk_factors"].append(
+                    f"타해 사고: {entities.homicidal_ideation}"
+                )
+
+        # Plan 기본값
+        if not plan_data["medications"] and entities.medications:
+            plan_data["medications"] = entities.medications
+
+        if not plan_data["follow_up"]:
+            plan_data["follow_up"] = "2-4주 후 재평가"
+
+        # ConsultationSummary 객체 생성
         return ConsultationSummary(
-            chief_complaint=sections["chief_complaint"] or "주호소 정보 없음",
-            present_illness=sections["present_illness"] or "현병력 정보 없음",
+            subjective=SubjectiveSection(
+                chief_complaint=subjective_data["chief_complaint"]
+                or "주호소 정보 없음",
+                history_present_illness=subjective_data["history_present_illness"]
+                or "현병력 정보 없음",
+                psychiatric_review=subjective_data["psychiatric_review"]
+                or "정신과 증상 검토 필요",
+                patient_perception=subjective_data["patient_perception"]
+                or "환자 인식 평가 필요",
+            ),
+            objective=ObjectiveSection(
+                vital_signs=objective_data["vital_signs"] or entities.vital_signs,
+                mental_status_exam=objective_data["mental_status_exam"],
+                physical_exam=objective_data["physical_exam"] or entities.physical_exam,
+            ),
+            assessment=AssessmentSection(
+                diagnosis=assessment_data["diagnosis"],
+                progress=assessment_data["progress"] or "초진",
+                risk_factors=assessment_data["risk_factors"],
+            ),
+            plan=PlanSection(
+                medications=plan_data["medications"],
+                psychotherapy=plan_data["psychotherapy"] or "정신치료 고려",
+                education=plan_data["education"],
+                follow_up=plan_data["follow_up"],
+                referrals=plan_data["referrals"],
+                safety_planning=plan_data["safety_planning"] or "위험 평가 후 결정",
+            ),
             medical_entities=entities,
-            assessment=sections["assessment"] or "평가 정보 없음",
-            plan=sections["plan"],
-            follow_up=sections["follow_up"]
-            if sections["follow_up"]
-            else "필요시 재방문",
         )
 
     def _calculate_confidence(
         self, entities: MedicalEntity, summary: ConsultationSummary
     ) -> float:
-        """요약 신뢰도 점수 계산"""
+        """정신과 SOAP 요약 신뢰도 점수 계산"""
         score = 0.0
 
-        # 개체 추출 완성도
-        if entities.symptoms:
-            score += 0.3
+        # 정신과 개체 추출 완성도 (40%)
+        if entities.chief_complaint:
+            score += 0.05
+        if entities.psychiatric_symptoms:
+            score += 0.1
         if entities.diagnoses:
-            score += 0.2
+            score += 0.1
         if entities.medications:
-            score += 0.2
+            score += 0.05
+        if entities.mental_status_exam and any(
+            [
+                entities.mental_status_exam.appearance,
+                entities.mental_status_exam.mood_affect,
+                entities.mental_status_exam.thought_content,
+            ]
+        ):
+            score += 0.1
 
-        # 요약 완성도
-        if summary.chief_complaint != "주호소 없음":
+        # SOAP 요약 완성도 (60%)
+        # Subjective 섹션 (15%)
+        if (
+            summary.subjective.chief_complaint
+            and summary.subjective.chief_complaint != "주호소 정보 없음"
+        ):
+            score += 0.05
+        if (
+            summary.subjective.history_present_illness
+            and summary.subjective.history_present_illness != "현병력 정보 없음"
+        ):
+            score += 0.05
+        if (
+            summary.subjective.psychiatric_review
+            and summary.subjective.psychiatric_review != "정신과 증상 검토 필요"
+        ):
+            score += 0.05
+
+        # Objective 섹션 (15%)
+        if summary.objective.mental_status_exam:
             score += 0.1
-        if summary.assessment != "평가 없음":
+        if summary.objective.vital_signs:
+            score += 0.05
+
+        # Assessment 섹션 (15%)
+        if summary.assessment.diagnosis:
             score += 0.1
-        if len(summary.plan) > 1:
-            score += 0.1
+        if summary.assessment.risk_factors:
+            score += 0.05
+
+        # Plan 섹션 (15%)
+        if summary.plan.medications:
+            score += 0.05
+        if summary.plan.psychotherapy and summary.plan.psychotherapy != "정신치료 고려":
+            score += 0.05
+        if (
+            summary.plan.safety_planning
+            and summary.plan.safety_planning != "위험 평가 후 결정"
+        ):
+            score += 0.05
 
         return min(score, 1.0)
 
@@ -593,27 +977,66 @@ JSON만 출력:""",
             print(">>> ", end="", flush=True)
         summary = self.generate_summary(dialogue, entities, medical_context)
 
-        # 5. 결과 구성
+        # 5. 결과 구성 - SOAP 형식
         result = {
             "patient_id": patient_id,
             "session_id": session_id,
             "timestamp": datetime.now().isoformat(),
             "dialogue_turns": len(turns),
             "llm_model": self.llm.get_model_info(),
-            "summary": {
-                "chief_complaint": summary.chief_complaint,
-                "present_illness": summary.present_illness,
-                "symptoms": entities.symptoms,
+            "soap_note": {
+                "subjective": {
+                    "chief_complaint": summary.subjective.chief_complaint,
+                    "history_present_illness": summary.subjective.history_present_illness,
+                    "psychiatric_review": summary.subjective.psychiatric_review,
+                    "patient_perception": summary.subjective.patient_perception,
+                },
+                "objective": {
+                    "vital_signs": summary.objective.vital_signs,
+                    "mental_status_exam": {
+                        "appearance": summary.objective.mental_status_exam.appearance,
+                        "behavior": summary.objective.mental_status_exam.behavior,
+                        "speech": summary.objective.mental_status_exam.speech,
+                        "mood_affect": summary.objective.mental_status_exam.mood_affect,
+                        "thought_process": summary.objective.mental_status_exam.thought_process,
+                        "thought_content": summary.objective.mental_status_exam.thought_content,
+                        "perception": summary.objective.mental_status_exam.perception,
+                        "cognition": summary.objective.mental_status_exam.cognition,
+                        "insight": summary.objective.mental_status_exam.insight,
+                    }
+                    if summary.objective.mental_status_exam
+                    else {},
+                    "physical_exam": summary.objective.physical_exam,
+                },
+                "assessment": {
+                    "diagnosis": summary.assessment.diagnosis,
+                    "progress": summary.assessment.progress,
+                    "risk_factors": summary.assessment.risk_factors,
+                },
+                "plan": {
+                    "medications": summary.plan.medications,
+                    "psychotherapy": summary.plan.psychotherapy,
+                    "education": summary.plan.education,
+                    "follow_up": summary.plan.follow_up,
+                    "referrals": summary.plan.referrals,
+                    "safety_planning": summary.plan.safety_planning,
+                },
+            },
+            "extracted_entities": {
+                "chief_complaint": entities.chief_complaint,
+                "psychiatric_symptoms": entities.psychiatric_symptoms,
+                "mood": entities.mood,
+                "sleep_pattern": entities.sleep_pattern,
+                "appetite": entities.appetite,
                 "duration": entities.duration,
                 "severity": entities.severity,
-                "vital_signs": entities.vital_signs,
-                "examinations": entities.examinations,
-                "diagnoses": entities.diagnoses,
+                "onset": entities.onset,
+                "triggers": entities.triggers,
+                "suicidal_ideation": entities.suicidal_ideation,
+                "homicidal_ideation": entities.homicidal_ideation,
+                "past_psychiatric_history": entities.past_psychiatric_history,
                 "medications": entities.medications,
-                "assessment": summary.assessment,
-                "plan": summary.plan,
-                "follow_up": summary.follow_up,
-                "warnings": summary.warnings,
+                "diagnoses": entities.diagnoses,
             },
             "confidence_score": summary.confidence_score,
             "references": summary.references,
